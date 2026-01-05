@@ -2,31 +2,36 @@
   background: white;
   border-radius: 12px;
   padding: 24px;
-  margin: 20px 0;
+  margin: 20px 24px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  max-height: 70vh;
+  overflow-y: auto;
 }
 
 .selector-header {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .selector-header h3 {
-  margin: 0 0 8px 0;
+  margin: 0 0 6px 0;
   color: #333;
-  font-size: 20px;
+  font-size: 18px;
 }
 
 .selector-header p {
   margin: 0;
   color: #666;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .pain-points-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: 14px;
+  margin-bottom: 20px;
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: 2px;
 }
 
 .pain-card {
@@ -122,8 +127,10 @@
 }
 
 .advance-actions {
-  margin-top: 24px;
+  margin-top: 20px;
   text-align: center;
+  padding-top: 20px;
+  border-top: 1px solid #e0e0e0;
 }
 
 .advance-button {
@@ -132,25 +139,27 @@
   border: none;
   padding: 14px 32px;
   border-radius: 8px;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .advance-button:hover:not(:disabled) {
   background: #357abd;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(74, 144, 226, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
 }
 
 .advance-button:disabled {
   background: #ccc;
   cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .advance-hint {
-  margin-top: 16px;
+  margin-top: 12px;
   font-size: 13px;
   color: #666;
 }

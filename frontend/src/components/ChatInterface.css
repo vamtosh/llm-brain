@@ -161,3 +161,125 @@
   background: #ccc;
   border-color: #ccc;
 }
+
+/* Stage advancement UI */
+.advance-prompt {
+  padding: 20px 24px;
+  background: #f8f9fa;
+  border-top: 1px solid #e0e0e0;
+  display: flex;
+  justify-content: center;
+}
+
+.show-advance-button {
+  padding: 14px 32px;
+  background: #4a90e2;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.show-advance-button:hover {
+  background: #357abd;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  transform: translateY(-1px);
+}
+
+.simple-advance {
+  padding: 20px 24px;
+  background: #f8f9fa;
+  border-top: 1px solid #e0e0e0;
+  text-align: center;
+}
+
+.simple-advance p {
+  margin: 0 0 16px 0;
+  color: #666;
+  font-size: 15px;
+}
+
+.advance-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.advance-button {
+  padding: 14px 32px;
+  background: #4a90e2;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.advance-button:hover:not(:disabled) {
+  background: #357abd;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  transform: translateY(-1px);
+}
+
+.advance-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cancel-button {
+  padding: 14px 32px;
+  background: white;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  color: #666;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cancel-button:hover:not(:disabled) {
+  border-color: #999;
+  color: #333;
+}
+
+.cancel-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.current-stage-badge {
+  padding: 8px 16px;
+  background: #e3f2fd;
+  border-left: 3px solid #4a90e2;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: #1976d2;
+  font-weight: 500;
+}
+
+.completion-message {
+  padding: 32px 24px;
+  background: #f1f8f4;
+  border-top: 1px solid #4caf50;
+  text-align: center;
+}
+
+.completion-message h3 {
+  margin: 0 0 8px 0;
+  color: #2e7d32;
+  font-size: 20px;
+}
+
+.completion-message p {
+  margin: 0;
+  color: #666;
+  font-size: 15px;
+}
