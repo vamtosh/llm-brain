@@ -15,20 +15,46 @@ export default function PainPointSelector({ widenOutput, onAdvance }) {
 
   // Extract pain points from WIDEN output (simple heuristic)
   const extractPainPoints = (text) => {
-    if (!text) return [];
+    if (!text) {
+      console.log('PainPointSelector: No widenOutput text provided');
+      return [];
+    }
 
-    // Look for PAINS section
-    const painsMatch = text.match(/##?\s*(?:2\.\s*)?PAINS?\s*:?\s*([\s\S]*?)(?=##?\s*(?:3\.|WORKAROUNDS|$))/i);
-    if (!painsMatch) return [];
+    console.log('PainPointSelector: Extracting pain points from:', text.substring(0, 200) + '...');
 
-    const painsSection = painsMatch[1];
+    // Try multiple patterns for PAINS section
+    const patterns = [
+      // Pattern 1: "## 2. PAINS:" or "## PAINS:" or "# PAINS:"
+      /##?\s*(?:2\.\s*)?PAINS?\s*:?\s*([\s\S]*?)(?=##?\s*(?:3\.|WORKAROUNDS|METRICS|INSIGHTS|$))/i,
+      // Pattern 2: "**2. PAINS**" or "**PAINS**"
+      /\*\*(?:2\.\s*)?PAINS?\*\*\s*:?\s*([\s\S]*?)(?=\*\*(?:3\.|WORKAROUNDS|METRICS|INSIGHTS|$))/i,
+      // Pattern 3: Just "PAINS:" or "2. PAINS:"
+      /(?:^|\n)(?:2\.\s*)?PAINS?\s*:?\s*([\s\S]*?)(?=(?:^|\n)(?:3\.|WORKAROUNDS|METRICS|INSIGHTS|$))/im
+    ];
+
+    let painsSection = null;
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match) {
+        painsSection = match[1];
+        console.log('PainPointSelector: Found PAINS section using pattern:', pattern);
+        break;
+      }
+    }
+
+    if (!painsSection) {
+      console.log('PainPointSelector: No PAINS section found');
+      return [];
+    }
+
     // Extract bulleted or numbered points
     const points = painsSection
       .split('\n')
       .filter(line => line.trim().match(/^[-*•\d]/))
       .map(line => line.replace(/^[-*•\d.)\s]+/, '').trim())
-      .filter(line => line.length > 10 && line.length < 200);
+      .filter(line => line.length > 10 && line.length < 300);
 
+    console.log('PainPointSelector: Extracted pain points:', points);
     return points.slice(0, 8); // Max 8 pain points
   };
 

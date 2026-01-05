@@ -65,7 +65,14 @@ export default function ChatInterface({
   const getLastAssistantMessage = () => {
     for (let i = conversation.messages.length - 1; i >= 0; i--) {
       if (conversation.messages[i].role === 'assistant') {
-        return conversation.messages[i];
+        const msg = conversation.messages[i];
+        console.log('ChatInterface: Last assistant message:', {
+          hasContent: !!msg.content,
+          contentLength: msg.content?.length,
+          hasReasoning: !!msg.reasoning,
+          reasoningLength: msg.reasoning?.length
+        });
+        return msg;
       }
     }
     return null;

@@ -25,21 +25,39 @@ async def query_model(
         reasoning_effort: Reasoning effort for gpt-5 models (low, medium, high)
 
     Returns:
-        Response dict with 'content', or None if failed
+        Response dict with 'content' and 'reasoning', or None if failed
     """
     try:
-        # Use the new responses API for GPT-5 models
+        # Use the new responses API for GPT-5 models with reasoning summary
         response = await client.responses.create(
             model=model,
-            reasoning={"effort": reasoning_effort},
+            reasoning={
+                "effort": reasoning_effort,
+                "summary": "auto"  # Request reasoning summary
+            },
             input=messages,
             timeout=timeout
         )
 
+        # Extract content from output_text
         content = response.output_text
 
+        # Extract reasoning summary from output array
+        reasoning_summary = None
+        if hasattr(response, 'output') and response.output:
+            for item in response.output:
+                if item.get('type') == 'reasoning' and item.get('summary'):
+                    # Combine summary text items
+                    summary_parts = []
+                    for summary_item in item['summary']:
+                        if summary_item.get('type') == 'summary_text':
+                            summary_parts.append(summary_item.get('text', ''))
+                    reasoning_summary = '\n'.join(summary_parts)
+                    break
+
         return {
-            'content': content
+            'content': content,
+            'reasoning': reasoning_summary
         }
 
     except Exception as e:
