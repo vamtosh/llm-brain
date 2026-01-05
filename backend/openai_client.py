@@ -46,12 +46,13 @@ async def query_model(
         reasoning_summary = None
         if hasattr(response, 'output') and response.output:
             for item in response.output:
-                if item.get('type') == 'reasoning' and item.get('summary'):
+                # Use dot notation for object properties, not .get() for dicts
+                if hasattr(item, 'type') and item.type == 'reasoning' and hasattr(item, 'summary'):
                     # Combine summary text items
                     summary_parts = []
-                    for summary_item in item['summary']:
-                        if summary_item.get('type') == 'summary_text':
-                            summary_parts.append(summary_item.get('text', ''))
+                    for summary_item in item.summary:
+                        if hasattr(summary_item, 'type') and summary_item.type == 'summary_text':
+                            summary_parts.append(summary_item.text)
                     reasoning_summary = '\n'.join(summary_parts)
                     break
 
