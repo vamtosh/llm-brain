@@ -14,7 +14,18 @@ export default function ChatInterface({
 }) {
   const [input, setInput] = useState('');
   const [showAdvanceUI, setShowAdvanceUI] = useState(false);
+  const [expandedReasoning, setExpandedReasoning] = useState(new Set());
   const messagesEndRef = useRef(null);
+
+  const toggleReasoning = (index) => {
+    const newExpanded = new Set(expandedReasoning);
+    if (newExpanded.has(index)) {
+      newExpanded.delete(index);
+    } else {
+      newExpanded.add(index);
+    }
+    setExpandedReasoning(newExpanded);
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -112,10 +123,40 @@ export default function ChatInterface({
                     <div className="message-label">Brainstorming Partner</div>
                     <div className="message-content markdown-content">
                       {msg.reasoning && (
-                        <div className="reasoning-preview">
-                          <em style={{ color: '#666', fontSize: '0.9em' }}>
-                            💭 {msg.reasoning.split('\n').slice(-3).join(' ')}
-                          </em>
+                        <div
+                          className="reasoning-container"
+                          onClick={() => toggleReasoning(index)}
+                          style={{ cursor: 'pointer', marginBottom: '12px' }}
+                        >
+                          <div className="reasoning-header" style={{
+                            color: '#666',
+                            fontSize: '0.85em',
+                            fontWeight: '500',
+                            marginBottom: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}>
+                            <span>{expandedReasoning.has(index) ? '▼' : '▶'}</span>
+                            <span>💭 Reasoning</span>
+                            <span style={{ fontSize: '0.9em', opacity: 0.7 }}>
+                              (click to {expandedReasoning.has(index) ? 'collapse' : 'expand'})
+                            </span>
+                          </div>
+                          <div style={{
+                            color: '#666',
+                            fontSize: '0.9em',
+                            fontStyle: 'italic',
+                            padding: '8px 12px',
+                            background: '#f8f9fa',
+                            borderRadius: '4px',
+                            borderLeft: '3px solid #4a90e2'
+                          }}>
+                            {expandedReasoning.has(index)
+                              ? msg.reasoning
+                              : msg.reasoning.split('\n').slice(-3).join(' ') + '...'
+                            }
+                          </div>
                         </div>
                       )}
                       <ReactMarkdown>{msg.content}</ReactMarkdown>

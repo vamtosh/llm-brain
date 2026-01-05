@@ -67,6 +67,25 @@ export default function PainPointSelector({ widenOutput, onAdvance }) {
         <p>Choose which pain point you'd like to analyze in depth using the 5-Why technique</p>
       </div>
 
+      {/* Debug info - remove after testing */}
+      {painPoints.length === 0 && widenOutput && (
+        <div style={{
+          background: '#fff3cd',
+          border: '1px solid #ffc107',
+          borderRadius: '4px',
+          padding: '12px',
+          marginBottom: '12px',
+          fontSize: '0.9em'
+        }}>
+          <strong>⚠️ No pain points extracted</strong>
+          <p>Output preview (first 500 chars):</p>
+          <pre style={{ fontSize: '0.85em', overflow: 'auto', maxHeight: '200px' }}>
+            {widenOutput.substring(0, 500)}
+          </pre>
+          <p style={{ marginTop: '8px' }}>Check browser console for full extraction logs.</p>
+        </div>
+      )}
+
       {painPoints.length > 0 && !useCustom && (
         <div className="pain-points-grid">
           {painPoints.map((pain, idx) => (
