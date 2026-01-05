@@ -12,14 +12,17 @@ Brainstorming Partner is a structured AI brainstorming tool that uses OpenAI's A
 
 **`config.py`**
 - Contains `OPENAI_API_KEY` (from `.env` file)
-- Contains `PRIMARY_MODEL` (default: "gpt-4o")
+- Contains `PRIMARY_MODEL` (default: "gpt-5-mini")
+- Contains `REASONING_EFFORT` (default: "medium" - can be "low", "medium", or "high")
 - Contains `BRAINSTORM_MODELS` (list of models for multi-perspective brainstorming)
 - Backend runs on **port 8001** (NOT 8000)
 
 **`openai_client.py`**
-- `query_model()`: Single async model query using OpenAI SDK
+- `query_model()`: Single async model query using OpenAI's new responses API for GPT-5 models
+- Uses `client.responses.create()` instead of `client.chat.completions.create()`
+- Includes `reasoning={"effort": "medium"}` parameter for GPT-5 reasoning models
 - `query_models_parallel()`: Parallel queries using `asyncio.gather()`
-- Returns dict with 'content' key
+- Returns dict with 'content' key extracted from `response.output_text`
 - Graceful degradation: returns None on failure
 
 **`brainstorm.py`** - The Core Logic
@@ -138,6 +141,12 @@ All ReactMarkdown components must be wrapped in `<div className="markdown-conten
 
 ### Model Configuration
 Models are configured in `backend/config.py`. The PRIMARY_MODEL is used for all three stages. BRAINSTORM_MODELS can be extended for multi-perspective brainstorming (future enhancement).
+
+**GPT-5 Models:**
+- Uses the new `responses` API instead of `chat.completions`
+- Requires `reasoning={"effort": "low|medium|high"}` parameter
+- Response accessed via `response.output_text` instead of `response.choices[0].message.content`
+- Reasoning effort can be adjusted in `config.py` (default: "medium")
 
 ## Common Gotchas
 

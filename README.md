@@ -65,14 +65,18 @@ Edit `backend/config.py` to customize the models:
 
 ```python
 # Primary model for brainstorming
-PRIMARY_MODEL = "gpt-4o"
+PRIMARY_MODEL = "gpt-5-mini"
+
+# Reasoning effort for gpt-5 models (low, medium, high)
+REASONING_EFFORT = "medium"
 
 # Alternative models for multi-perspective brainstorming
 BRAINSTORM_MODELS = [
-    "gpt-4o",
-    "gpt-4o-mini",
+    "gpt-5-mini",
 ]
 ```
+
+**Note:** This tool uses GPT-5's new reasoning API with configurable effort levels. Higher reasoning effort provides more thorough analysis but takes longer.
 
 ## Running the Application
 

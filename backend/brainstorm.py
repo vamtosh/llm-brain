@@ -37,7 +37,7 @@ Please structure your response with clear sections for each category above. Be s
 
     messages = [{"role": "user", "content": widen_prompt}]
 
-    response = await query_model(PRIMARY_MODEL, messages, temperature=0.8)
+    response = await query_model(PRIMARY_MODEL, messages)
 
     if response is None:
         return {
@@ -94,7 +94,7 @@ Be analytical and critical. Look for systemic issues, not just surface symptoms.
 
     messages = [{"role": "user", "content": diagnose_prompt}]
 
-    response = await query_model(PRIMARY_MODEL, messages, temperature=0.7)
+    response = await query_model(PRIMARY_MODEL, messages)
 
     if response is None:
         return {
@@ -168,7 +168,7 @@ Be creative and specific. Think about practical implementation."""
 
     messages = [{"role": "user", "content": converge_prompt}]
 
-    response = await query_model(PRIMARY_MODEL, messages, temperature=0.8)
+    response = await query_model(PRIMARY_MODEL, messages)
 
     if response is None:
         return {
@@ -201,7 +201,7 @@ Title:"""
 
     messages = [{"role": "user", "content": title_prompt}]
 
-    response = await query_model(PRIMARY_MODEL, messages, timeout=30.0, temperature=0.5)
+    response = await query_model(PRIMARY_MODEL, messages, timeout=30.0)
 
     if response is None:
         return "New Brainstorm"

@@ -2,7 +2,7 @@
 
 from openai import AsyncOpenAI
 from typing import List, Dict, Any, Optional
-from .config import OPENAI_API_KEY
+from .config import OPENAI_API_KEY, REASONING_EFFORT
 
 
 # Initialize OpenAI client
@@ -13,29 +13,30 @@ async def query_model(
     model: str,
     messages: List[Dict[str, str]],
     timeout: float = 120.0,
-    temperature: float = 0.7
+    reasoning_effort: str = REASONING_EFFORT
 ) -> Optional[Dict[str, Any]]:
     """
-    Query a single model via OpenAI API.
+    Query a single model via OpenAI API using the new responses API for GPT-5 models.
 
     Args:
-        model: OpenAI model identifier (e.g., "gpt-4o")
+        model: OpenAI model identifier (e.g., "gpt-5-mini")
         messages: List of message dicts with 'role' and 'content'
         timeout: Request timeout in seconds
-        temperature: Model temperature (0.0-1.0)
+        reasoning_effort: Reasoning effort for gpt-5 models (low, medium, high)
 
     Returns:
         Response dict with 'content', or None if failed
     """
     try:
-        response = await client.chat.completions.create(
+        # Use the new responses API for GPT-5 models
+        response = await client.responses.create(
             model=model,
-            messages=messages,
-            temperature=temperature,
+            reasoning={"effort": reasoning_effort},
+            input=messages,
             timeout=timeout
         )
 
-        content = response.choices[0].message.content
+        content = response.output_text
 
         return {
             'content': content
@@ -49,7 +50,7 @@ async def query_model(
 async def query_models_parallel(
     models: List[str],
     messages: List[Dict[str, str]],
-    temperature: float = 0.7
+    reasoning_effort: str = REASONING_EFFORT
 ) -> Dict[str, Optional[Dict[str, Any]]]:
     """
     Query multiple models in parallel.
@@ -57,7 +58,7 @@ async def query_models_parallel(
     Args:
         models: List of OpenAI model identifiers
         messages: List of message dicts to send to each model
-        temperature: Model temperature
+        reasoning_effort: Reasoning effort for gpt-5 models
 
     Returns:
         Dict mapping model identifier to response dict (or None if failed)
@@ -65,7 +66,7 @@ async def query_models_parallel(
     import asyncio
 
     # Create tasks for all models
-    tasks = [query_model(model, messages, temperature=temperature) for model in models]
+    tasks = [query_model(model, messages, reasoning_effort=reasoning_effort) for model in models]
 
     # Wait for all to complete
     responses = await asyncio.gather(*tasks)

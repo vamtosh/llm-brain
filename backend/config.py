@@ -9,13 +9,15 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Primary model for brainstorming
-PRIMARY_MODEL = "gpt-4o"
+PRIMARY_MODEL = "gpt-5-mini"
+
+# Reasoning effort for gpt-5 models (low, medium, high)
+REASONING_EFFORT = "medium"
 
 # Alternative models for multi-perspective brainstorming (optional)
 # You can add more models here for richer brainstorming sessions
 BRAINSTORM_MODELS = [
-    "gpt-4o",
-    "gpt-4o-mini",
+    "gpt-5-mini",
 ]
 
 # Data directory for conversation storage
