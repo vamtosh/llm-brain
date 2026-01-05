@@ -3,6 +3,7 @@
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import uuid
+import json
 from .client import db
 
 
@@ -139,7 +140,7 @@ class MessageRepository:
             content,
             stage,
             reasoning,
-            metadata or {}
+            json.dumps(metadata or {})
         )
 
         return {
@@ -166,7 +167,15 @@ class MessageRepository:
             uuid.UUID(conversation_id)
         )
 
-        return [dict(row) for row in rows]
+        messages = []
+        for row in rows:
+            msg = dict(row)
+            # Parse JSONB metadata field
+            if msg.get('metadata') and isinstance(msg['metadata'], str):
+                msg['metadata'] = json.loads(msg['metadata'])
+            messages.append(msg)
+
+        return messages
 
     @staticmethod
     async def list_by_stage(conversation_id: str, stage: str) -> List[Dict[str, Any]]:
@@ -182,7 +191,15 @@ class MessageRepository:
             stage
         )
 
-        return [dict(row) for row in rows]
+        messages = []
+        for row in rows:
+            msg = dict(row)
+            # Parse JSONB metadata field
+            if msg.get('metadata') and isinstance(msg['metadata'], str):
+                msg['metadata'] = json.loads(msg['metadata'])
+            messages.append(msg)
+
+        return messages
 
 
 class StageContextRepository:
@@ -210,7 +227,7 @@ class StageContextRepository:
             """,
             uuid.UUID(conversation_id),
             stage,
-            context_data,
+            json.dumps(context_data),
             output,
             completed_at
         )
@@ -231,7 +248,12 @@ class StageContextRepository:
         if row is None:
             return None
 
-        return dict(row)
+        context = dict(row)
+        # Parse JSONB context_data field
+        if context.get('context_data') and isinstance(context['context_data'], str):
+            context['context_data'] = json.loads(context['context_data'])
+
+        return context
 
     @staticmethod
     async def get_all(conversation_id: str) -> List[Dict[str, Any]]:
@@ -246,7 +268,15 @@ class StageContextRepository:
             uuid.UUID(conversation_id)
         )
 
-        return [dict(row) for row in rows]
+        contexts = []
+        for row in rows:
+            context = dict(row)
+            # Parse JSONB context_data field
+            if context.get('context_data') and isinstance(context['context_data'], str):
+                context['context_data'] = json.loads(context['context_data'])
+            contexts.append(context)
+
+        return contexts
 
     @staticmethod
     async def mark_complete(conversation_id: str, stage: str, output: str):
@@ -290,8 +320,8 @@ class DocumentRepository:
             file_size,
             file_type,
             extracted_text,
-            chunks or [],
-            metadata or {}
+            json.dumps(chunks or []),
+            json.dumps(metadata or {})
         )
 
         return {
@@ -316,7 +346,15 @@ class DocumentRepository:
             uuid.UUID(conversation_id)
         )
 
-        return [dict(row) for row in rows]
+        documents = []
+        for row in rows:
+            doc = dict(row)
+            # Parse JSONB metadata field
+            if doc.get('metadata') and isinstance(doc['metadata'], str):
+                doc['metadata'] = json.loads(doc['metadata'])
+            documents.append(doc)
+
+        return documents
 
     @staticmethod
     async def get(document_id: str) -> Optional[Dict[str, Any]]:
@@ -333,7 +371,14 @@ class DocumentRepository:
         if row is None:
             return None
 
-        return dict(row)
+        doc = dict(row)
+        # Parse JSONB fields
+        if doc.get('chunks') and isinstance(doc['chunks'], str):
+            doc['chunks'] = json.loads(doc['chunks'])
+        if doc.get('metadata') and isinstance(doc['metadata'], str):
+            doc['metadata'] = json.loads(doc['metadata'])
+
+        return doc
 
     @staticmethod
     async def delete(document_id: str):
