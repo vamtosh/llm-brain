@@ -8,17 +8,20 @@ function App() {
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
   const [currentConversation, setCurrentConversation] = useState(null);
+  const [stageStatus, setStageStatus] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAdvancing, setIsAdvancing] = useState(false);
 
   // Load conversations on mount
   useEffect(() => {
     loadConversations();
   }, []);
 
-  // Load conversation details when selected
+  // Load conversation details and stage status when selected
   useEffect(() => {
     if (currentConversationId) {
       loadConversation(currentConversationId);
+      loadStageStatus(currentConversationId);
     }
   }, [currentConversationId]);
 
@@ -37,6 +40,15 @@ function App() {
       setCurrentConversation(conv);
     } catch (error) {
       console.error('Failed to load conversation:', error);
+    }
+  };
+
+  const loadStageStatus = async (id) => {
+    try {
+      const status = await api.getStageStatus(id);
+      setStageStatus(status);
+    } catch (error) {
+      console.error('Failed to load stage status:', error);
     }
   };
 
@@ -69,115 +81,59 @@ function App() {
         messages: [...prev.messages, userMessage],
       }));
 
-      // Create a partial assistant message that will be updated progressively
+      // Send message and get response
+      const response = await api.sendMessage(currentConversationId, content);
+
+      // Add assistant message to UI
       const assistantMessage = {
         role: 'assistant',
-        stage1: null,
-        stage2: null,
-        stage3: null,
-        metadata: null,
-        loading: {
-          stage1: false,
-          stage2: false,
-          stage3: false,
-        },
+        content: response.content,
+        reasoning: response.reasoning,
+        metadata: response.metadata,
       };
 
-      // Add the partial assistant message
       setCurrentConversation((prev) => ({
         ...prev,
         messages: [...prev.messages, assistantMessage],
       }));
 
-      // Send message with streaming
-      await api.sendMessageStream(currentConversationId, content, (eventType, event) => {
-        switch (eventType) {
-          case 'stage1_start':
-            setCurrentConversation((prev) => {
-              const messages = [...prev.messages];
-              const lastMsg = messages[messages.length - 1];
-              lastMsg.loading.stage1 = true;
-              return { ...prev, messages };
-            });
-            break;
+      // Reload conversations list to update title and message count
+      loadConversations();
 
-          case 'stage1_complete':
-            setCurrentConversation((prev) => {
-              const messages = [...prev.messages];
-              const lastMsg = messages[messages.length - 1];
-              lastMsg.stage1 = event.data;
-              lastMsg.loading.stage1 = false;
-              return { ...prev, messages };
-            });
-            break;
-
-          case 'stage2_start':
-            setCurrentConversation((prev) => {
-              const messages = [...prev.messages];
-              const lastMsg = messages[messages.length - 1];
-              lastMsg.loading.stage2 = true;
-              return { ...prev, messages };
-            });
-            break;
-
-          case 'stage2_complete':
-            setCurrentConversation((prev) => {
-              const messages = [...prev.messages];
-              const lastMsg = messages[messages.length - 1];
-              lastMsg.stage2 = event.data;
-              lastMsg.metadata = event.metadata;
-              lastMsg.loading.stage2 = false;
-              return { ...prev, messages };
-            });
-            break;
-
-          case 'stage3_start':
-            setCurrentConversation((prev) => {
-              const messages = [...prev.messages];
-              const lastMsg = messages[messages.length - 1];
-              lastMsg.loading.stage3 = true;
-              return { ...prev, messages };
-            });
-            break;
-
-          case 'stage3_complete':
-            setCurrentConversation((prev) => {
-              const messages = [...prev.messages];
-              const lastMsg = messages[messages.length - 1];
-              lastMsg.stage3 = event.data;
-              lastMsg.loading.stage3 = false;
-              return { ...prev, messages };
-            });
-            break;
-
-          case 'title_complete':
-            // Reload conversations to get updated title
-            loadConversations();
-            break;
-
-          case 'complete':
-            // Stream complete, reload conversations list
-            loadConversations();
-            setIsLoading(false);
-            break;
-
-          case 'error':
-            console.error('Stream error:', event.message);
-            setIsLoading(false);
-            break;
-
-          default:
-            console.log('Unknown event type:', eventType);
-        }
-      });
+      // Reload stage status to check if stage can be advanced
+      await loadStageStatus(currentConversationId);
     } catch (error) {
       console.error('Failed to send message:', error);
-      // Remove optimistic messages on error
+      // Remove optimistic user message on error
       setCurrentConversation((prev) => ({
         ...prev,
-        messages: prev.messages.slice(0, -2),
+        messages: prev.messages.slice(0, -1),
       }));
+    } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleAdvanceStage = async (userInput = null) => {
+    if (!currentConversationId) return;
+
+    setIsAdvancing(true);
+    try {
+      await api.advanceStage(currentConversationId, userInput);
+
+      // Reload conversation to get updated stage
+      await loadConversation(currentConversationId);
+
+      // Reload stage status
+      await loadStageStatus(currentConversationId);
+
+      // Reload conversations list to update title
+      loadConversations();
+    } catch (error) {
+      console.error('Failed to advance stage:', error);
+      alert('Failed to advance to next stage. Please try again.');
+    } finally {
+      setIsAdvancing(false);
     }
   };
 
@@ -191,8 +147,11 @@ function App() {
       />
       <ChatInterface
         conversation={currentConversation}
+        stageStatus={stageStatus}
         onSendMessage={handleSendMessage}
+        onAdvanceStage={handleAdvanceStage}
         isLoading={isLoading}
+        isAdvancing={isAdvancing}
       />
     </div>
   );

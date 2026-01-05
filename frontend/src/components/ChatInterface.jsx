@@ -1,16 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import Stage1 from './Stage1';
-import Stage2 from './Stage2';
-import Stage3 from './Stage3';
+import StageProgress from './StageProgress';
+import PainPointSelector from './PainPointSelector';
 import './ChatInterface.css';
 
 export default function ChatInterface({
   conversation,
+  stageStatus,
   onSendMessage,
+  onAdvanceStage,
   isLoading,
+  isAdvancing,
 }) {
   const [input, setInput] = useState('');
+  const [showAdvanceUI, setShowAdvanceUI] = useState(false);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -37,6 +40,11 @@ export default function ChatInterface({
     }
   };
 
+  const handleAdvance = (userInput = null) => {
+    onAdvanceStage(userInput);
+    setShowAdvanceUI(false);
+  };
+
   if (!conversation) {
     return (
       <div className="chat-interface">
@@ -48,77 +56,133 @@ export default function ChatInterface({
     );
   }
 
+  const currentStage = stageStatus?.current_stage || 'widen';
+  const canAdvance = stageStatus?.can_advance && conversation.messages.length > 0;
+  const requiresInput = stageStatus?.requires_input || {};
+  const isComplete = currentStage === 'complete';
+
+  // Get last assistant message for WIDEN output (needed for pain point selection)
+  const getLastAssistantMessage = () => {
+    for (let i = conversation.messages.length - 1; i >= 0; i--) {
+      if (conversation.messages[i].role === 'assistant') {
+        return conversation.messages[i];
+      }
+    }
+    return null;
+  };
+
   return (
     <div className="chat-interface">
+      {/* Stage Progress Indicator */}
+      {conversation.messages.length > 0 && (
+        <StageProgress currentStage={currentStage} />
+      )}
+
+      {/* Messages Container */}
       <div className="messages-container">
         {conversation.messages.length === 0 ? (
           <div className="empty-state">
-            <h2>Start brainstorming</h2>
-            <p>Describe your challenge or problem to begin</p>
+            <h2>🔍 Stage 1: WIDEN</h2>
+            <p>Describe your challenge to explore the problem space</p>
           </div>
         ) : (
-          conversation.messages.map((msg, index) => (
-            <div key={index} className="message-group">
-              {msg.role === 'user' ? (
-                <div className="user-message">
-                  <div className="message-label">You</div>
-                  <div className="message-content">
-                    <div className="markdown-content">
+          <>
+            <div className="current-stage-badge">
+              Current Stage: <strong>{currentStage.toUpperCase()}</strong>
+            </div>
+
+            {conversation.messages.map((msg, index) => (
+              <div key={index} className="message-group">
+                {msg.role === 'user' ? (
+                  <div className="user-message">
+                    <div className="message-label">You</div>
+                    <div className="message-content markdown-content">
                       <ReactMarkdown>{msg.content}</ReactMarkdown>
                     </div>
                   </div>
-                </div>
-              ) : (
-                <div className="assistant-message">
-                  <div className="message-label">Brainstorming Partner</div>
-
-                  {/* Stage 1: WIDEN */}
-                  {msg.loading?.stage1 && (
-                    <div className="stage-loading">
-                      <div className="spinner"></div>
-                      <span>Stage 1: Widening the problem space...</span>
+                ) : (
+                  <div className="assistant-message">
+                    <div className="message-label">Brainstorming Partner</div>
+                    <div className="message-content markdown-content">
+                      {msg.reasoning && (
+                        <div className="reasoning-preview">
+                          <em style={{ color: '#666', fontSize: '0.9em' }}>
+                            💭 {msg.reasoning.split('\n').slice(-3).join(' ')}
+                          </em>
+                        </div>
+                      )}
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
                     </div>
-                  )}
-                  {msg.stage1 && <Stage1 widenOutput={msg.stage1} />}
-
-                  {/* Stage 2: DIAGNOSE */}
-                  {msg.loading?.stage2 && (
-                    <div className="stage-loading">
-                      <div className="spinner"></div>
-                      <span>Stage 2: Diagnosing root causes...</span>
-                    </div>
-                  )}
-                  {msg.stage2 && <Stage2 diagnoseOutput={msg.stage2} />}
-
-                  {/* Stage 3: CONVERGE */}
-                  {msg.loading?.stage3 && (
-                    <div className="stage-loading">
-                      <div className="spinner"></div>
-                      <span>Stage 3: Converging on solutions...</span>
-                    </div>
-                  )}
-                  {msg.stage3 && <Stage3 convergeOutput={msg.stage3} />}
-                </div>
-              )}
-            </div>
-          ))
+                  </div>
+                )}
+              </div>
+            ))}
+          </>
         )}
 
         {isLoading && (
           <div className="loading-indicator">
             <div className="spinner"></div>
-            <span>Brainstorming in progress...</span>
+            <span>Thinking...</span>
           </div>
         )}
 
         <div ref={messagesEndRef} />
       </div>
 
-      {conversation.messages.length === 0 && (
+      {/* Stage Advancement UI */}
+      {!isComplete && canAdvance && !showAdvanceUI && (
+        <div className="advance-prompt">
+          <button
+            className="show-advance-button"
+            onClick={() => setShowAdvanceUI(true)}
+          >
+            ✓ Complete {currentStage.toUpperCase()} Stage & Continue →
+          </button>
+        </div>
+      )}
+
+      {/* Pain Point Selector (WIDEN → DIAGNOSE) */}
+      {showAdvanceUI && requiresInput.required && requiresInput.type === 'pain_point_selection' && (
+        <PainPointSelector
+          widenOutput={getLastAssistantMessage()?.content || ''}
+          onAdvance={handleAdvance}
+        />
+      )}
+
+      {/* Simple Advance (DIAGNOSE → CONVERGE or other) */}
+      {showAdvanceUI && !requiresInput.required && (
+        <div className="simple-advance">
+          <p>{requiresInput.description || 'Ready to advance to the next stage?'}</p>
+          <div className="advance-actions">
+            <button
+              className="advance-button"
+              onClick={() => handleAdvance()}
+              disabled={isAdvancing}
+            >
+              {isAdvancing ? 'Advancing...' : `Proceed to ${stageStatus?.next_stage?.toUpperCase()} →`}
+            </button>
+            <button
+              className="cancel-button"
+              onClick={() => setShowAdvanceUI(false)}
+              disabled={isAdvancing}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Message Input Form */}
+      {!isComplete && !showAdvanceUI && (
         <form className="input-form" onSubmit={handleSubmit}>
           <textarea
             className="message-input"
-            placeholder="Describe your challenge or problem... (Shift+Enter for new line, Enter to send)"
+            placeholder={
+              conversation.messages.length === 0
+                ? "Describe your challenge... (Shift+Enter for new line, Enter to send)"
+                : "Continue the conversation... (Shift+Enter for new line, Enter to send)"
+            }
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -130,9 +194,17 @@ export default function ChatInterface({
             className="send-button"
             disabled={!input.trim() || isLoading}
           >
-            Start Brainstorm
+            {isLoading ? 'Sending...' : 'Send'}
           </button>
         </form>
+      )}
+
+      {/* Completion Message */}
+      {isComplete && (
+        <div className="completion-message">
+          <h3>🎉 Brainstorming Complete!</h3>
+          <p>All stages have been completed. Review the insights above.</p>
+        </div>
       )}
     </div>
   );
