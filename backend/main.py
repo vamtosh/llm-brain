@@ -179,11 +179,46 @@ async def advance_stage(conversation_id: str, request: AdvanceStageRequest):
     # Update conversation's current stage
     await ConversationRepository.update_stage(conversation_id, next_stage)
 
+    # Automatically generate the first response for the new stage
+    # Get all previous stage contexts
+    all_stage_contexts = await StageContextRepository.get_all(conversation_id)
+    previous_stages = {sc["stage"]: sc for sc in all_stage_contexts}
+
+    # Build context for the new stage
+    context = StageManager.build_context_for_stage(
+        next_stage,
+        previous_stages,
+        request.user_input or {}
+    )
+
+    # Create an automatic prompt based on the stage
+    auto_prompt = StageManager.get_auto_prompt_for_stage(next_stage, context)
+
+    # Process the automatic message
+    response_data = await process_stage_message(
+        stage=next_stage,
+        user_message=auto_prompt,
+        context=context
+    )
+
+    # Save the automatic assistant response
+    await MessageRepository.create(
+        conversation_id=conversation_id,
+        role="assistant",
+        content=response_data.get("content", ""),
+        stage=next_stage,
+        reasoning=response_data.get("reasoning"),
+        metadata=response_data.get("metadata", {})
+    )
+
     return {
         "success": True,
         "previous_stage": current_stage,
         "current_stage": next_stage,
-        "message": f"Advanced from {current_stage} to {next_stage}"
+        "message": f"Advanced from {current_stage} to {next_stage}",
+        "content": response_data.get("content", ""),
+        "reasoning": response_data.get("reasoning"),
+        "metadata": response_data.get("metadata", {})
     }
 
 

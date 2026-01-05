@@ -328,3 +328,16 @@ Structure your response in Markdown with the following exact format:
             return to_idx == from_idx + 1
         except (ValueError, IndexError):
             return False
+
+    @staticmethod
+    def get_auto_prompt_for_stage(stage: str, context: Dict[str, Any]) -> str:
+        """Get the automatic prompt to trigger when advancing to a new stage."""
+        if stage == Stage.DIAGNOSE.value:
+            pain_point = context.get('selected_pain_point', 'the selected pain point')
+            return f"Analyze the following pain point using the 5-Why technique and provide root cause hypotheses: {pain_point}"
+
+        elif stage == Stage.CONVERGE.value:
+            return "Based on the problem analysis from the WIDEN and DIAGNOSE stages, generate comprehensive solution options across all three categories (Process, Analytics/ML, and Automation) with specific recommendations."
+
+        else:
+            return "Please provide your analysis for this stage."

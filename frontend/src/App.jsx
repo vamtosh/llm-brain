@@ -119,7 +119,22 @@ function App() {
 
     setIsAdvancing(true);
     try {
-      await api.advanceStage(currentConversationId, userInput);
+      const response = await api.advanceStage(currentConversationId, userInput);
+
+      // Add the automatic assistant message to UI
+      if (response.content) {
+        const assistantMessage = {
+          role: 'assistant',
+          content: response.content,
+          reasoning: response.reasoning,
+          metadata: response.metadata,
+        };
+
+        setCurrentConversation((prev) => ({
+          ...prev,
+          messages: [...prev.messages, assistantMessage],
+        }));
+      }
 
       // Reload conversation to get updated stage
       await loadConversation(currentConversationId);
