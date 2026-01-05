@@ -41,8 +41,8 @@ export default function ChatInterface({
     return (
       <div className="chat-interface">
         <div className="empty-state">
-          <h2>Welcome to LLM Council</h2>
-          <p>Create a new conversation to get started</p>
+          <h2>Welcome to Brainstorming Partner</h2>
+          <p>Create a new brainstorming session to get started</p>
         </div>
       </div>
     );
@@ -53,8 +53,8 @@ export default function ChatInterface({
       <div className="messages-container">
         {conversation.messages.length === 0 ? (
           <div className="empty-state">
-            <h2>Start a conversation</h2>
-            <p>Ask a question to consult the LLM Council</p>
+            <h2>Start brainstorming</h2>
+            <p>Describe your challenge or problem to begin</p>
           </div>
         ) : (
           conversation.messages.map((msg, index) => (
@@ -70,40 +70,34 @@ export default function ChatInterface({
                 </div>
               ) : (
                 <div className="assistant-message">
-                  <div className="message-label">LLM Council</div>
+                  <div className="message-label">Brainstorming Partner</div>
 
-                  {/* Stage 1 */}
+                  {/* Stage 1: WIDEN */}
                   {msg.loading?.stage1 && (
                     <div className="stage-loading">
                       <div className="spinner"></div>
-                      <span>Running Stage 1: Collecting individual responses...</span>
+                      <span>Stage 1: Widening the problem space...</span>
                     </div>
                   )}
-                  {msg.stage1 && <Stage1 responses={msg.stage1} />}
+                  {msg.stage1 && <Stage1 widenOutput={msg.stage1} />}
 
-                  {/* Stage 2 */}
+                  {/* Stage 2: DIAGNOSE */}
                   {msg.loading?.stage2 && (
                     <div className="stage-loading">
                       <div className="spinner"></div>
-                      <span>Running Stage 2: Peer rankings...</span>
+                      <span>Stage 2: Diagnosing root causes...</span>
                     </div>
                   )}
-                  {msg.stage2 && (
-                    <Stage2
-                      rankings={msg.stage2}
-                      labelToModel={msg.metadata?.label_to_model}
-                      aggregateRankings={msg.metadata?.aggregate_rankings}
-                    />
-                  )}
+                  {msg.stage2 && <Stage2 diagnoseOutput={msg.stage2} />}
 
-                  {/* Stage 3 */}
+                  {/* Stage 3: CONVERGE */}
                   {msg.loading?.stage3 && (
                     <div className="stage-loading">
                       <div className="spinner"></div>
-                      <span>Running Stage 3: Final synthesis...</span>
+                      <span>Stage 3: Converging on solutions...</span>
                     </div>
                   )}
-                  {msg.stage3 && <Stage3 finalResponse={msg.stage3} />}
+                  {msg.stage3 && <Stage3 convergeOutput={msg.stage3} />}
                 </div>
               )}
             </div>
@@ -113,7 +107,7 @@ export default function ChatInterface({
         {isLoading && (
           <div className="loading-indicator">
             <div className="spinner"></div>
-            <span>Consulting the council...</span>
+            <span>Brainstorming in progress...</span>
           </div>
         )}
 
@@ -124,7 +118,7 @@ export default function ChatInterface({
         <form className="input-form" onSubmit={handleSubmit}>
           <textarea
             className="message-input"
-            placeholder="Ask your question... (Shift+Enter for new line, Enter to send)"
+            placeholder="Describe your challenge or problem... (Shift+Enter for new line, Enter to send)"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -136,7 +130,7 @@ export default function ChatInterface({
             className="send-button"
             disabled={!input.trim() || isLoading}
           >
-            Send
+            Start Brainstorm
           </button>
         </form>
       )}

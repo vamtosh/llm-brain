@@ -1,166 +1,196 @@
-# CLAUDE.md - Technical Notes for LLM Council
+# CLAUDE.md - Technical Notes for Brainstorming Partner
 
 This file contains technical details, architectural decisions, and important implementation notes for future development sessions.
 
 ## Project Overview
 
-LLM Council is a 3-stage deliberation system where multiple LLMs collaboratively answer user questions. The key innovation is anonymized peer review in Stage 2, preventing models from playing favorites.
+Brainstorming Partner is a structured AI brainstorming tool that uses OpenAI's API to guide users through a 3-stage framework: WIDEN → DIAGNOSE → CONVERGE. Unlike traditional chatbots, this tool provides a systematic approach to problem-solving with clear stages for exploration, diagnosis, and solution generation.
 
 ## Architecture
 
 ### Backend Structure (`backend/`)
 
 **`config.py`**
-- Contains `COUNCIL_MODELS` (list of OpenRouter model identifiers)
-- Contains `CHAIRMAN_MODEL` (model that synthesizes final answer)
-- Uses environment variable `OPENROUTER_API_KEY` from `.env`
-- Backend runs on **port 8001** (NOT 8000 - user had another app on 8000)
+- Contains `OPENAI_API_KEY` (from `.env` file)
+- Contains `PRIMARY_MODEL` (default: "gpt-4o")
+- Contains `BRAINSTORM_MODELS` (list of models for multi-perspective brainstorming)
+- Backend runs on **port 8001** (NOT 8000)
 
-**`openrouter.py`**
-- `query_model()`: Single async model query
+**`openai_client.py`**
+- `query_model()`: Single async model query using OpenAI SDK
 - `query_models_parallel()`: Parallel queries using `asyncio.gather()`
-- Returns dict with 'content' and optional 'reasoning_details'
-- Graceful degradation: returns None on failure, continues with successful responses
+- Returns dict with 'content' key
+- Graceful degradation: returns None on failure
 
-**`council.py`** - The Core Logic
-- `stage1_collect_responses()`: Parallel queries to all council models
-- `stage2_collect_rankings()`:
-  - Anonymizes responses as "Response A, B, C, etc."
-  - Creates `label_to_model` mapping for de-anonymization
-  - Prompts models to evaluate and rank (with strict format requirements)
-  - Returns tuple: (rankings_list, label_to_model_dict)
-  - Each ranking includes both raw text and `parsed_ranking` list
-- `stage3_synthesize_final()`: Chairman synthesizes from all responses + rankings
-- `parse_ranking_from_text()`: Extracts "FINAL RANKING:" section, handles both numbered lists and plain format
-- `calculate_aggregate_rankings()`: Computes average rank position across all peer evaluations
+**`brainstorm.py`** - The Core Logic
+- `stage1_widen()`: Surface personas, pains, workarounds, metrics, insights, risks
+- `stage2_diagnose()`: Apply 5-Why technique and propose root cause hypotheses with evidence
+- `stage3_converge()`: Generate and cluster ideas into Process, Analytics, ML/Automation, Other
+- `run_full_brainstorm()`: Orchestrates all three stages sequentially
+- `generate_conversation_title()`: Creates concise titles for brainstorming sessions
 
 **`storage.py`**
 - JSON-based conversation storage in `data/conversations/`
 - Each conversation: `{id, created_at, messages[]}`
 - Assistant messages contain: `{role, stage1, stage2, stage3}`
-- Note: metadata (label_to_model, aggregate_rankings) is NOT persisted to storage, only returned via API
+- Each stage is a dict with `{model, response}` structure
 
 **`main.py`**
 - FastAPI app with CORS enabled for localhost:5173 and localhost:3000
-- POST `/api/conversations/{id}/message` returns metadata in addition to stages
-- Metadata includes: label_to_model mapping and aggregate_rankings
+- POST `/api/conversations/{id}/message` returns all three stages
+- POST `/api/conversations/{id}/message/stream` streams stages progressively
+- Metadata includes model used and stages completed
 
 ### Frontend Structure (`frontend/src/`)
 
 **`App.jsx`**
 - Main orchestration: manages conversations list and current conversation
-- Handles message sending and metadata storage
-- Important: metadata is stored in the UI state for display but not persisted to backend JSON
+- Handles message sending with progressive streaming updates
+- Maintains loading state for each stage independently
 
 **`components/ChatInterface.jsx`**
 - Multiline textarea (3 rows, resizable)
 - Enter to send, Shift+Enter for new line
-- User messages wrapped in markdown-content class for padding
+- User messages wrapped in markdown-content class
+- Stage-specific loading indicators
 
 **`components/Stage1.jsx`**
-- Tab view of individual model responses
+- Displays WIDEN output: personas, pains, workarounds, metrics, insights, risks
 - ReactMarkdown rendering with markdown-content wrapper
+- Simple single-panel view (no tabs needed)
 
 **`components/Stage2.jsx`**
-- **Critical Feature**: Tab view showing RAW evaluation text from each model
-- De-anonymization happens CLIENT-SIDE for display (models receive anonymous labels)
-- Shows "Extracted Ranking" below each evaluation so users can validate parsing
-- Aggregate rankings shown with average position and vote count
-- Explanatory text clarifies that boldface model names are for readability only
+- Displays DIAGNOSE output: 5-Why analysis and root cause hypotheses
+- Shows supporting/disproving evidence for each hypothesis
+- ReactMarkdown rendering
 
 **`components/Stage3.jsx`**
-- Final synthesized answer from chairman
-- Green-tinted background (#f0fff0) to highlight conclusion
+- Displays CONVERGE output: clustered solution ideas
+- Shows categorized ideas with impact/effort assessment
+- Green-tinted background (#f0fff0) for visual distinction
 
 **Styling (`*.css`)**
-- Light mode theme (not dark mode)
+- Light mode theme
 - Primary color: #4a90e2 (blue)
 - Global markdown styling in `index.css` with `.markdown-content` class
-- 12px padding on all markdown content to prevent cluttered appearance
+- 12px padding on all markdown content
 
 ## Key Design Decisions
 
-### Stage 2 Prompt Format
-The Stage 2 prompt is very specific to ensure parseable output:
-```
-1. Evaluate each response individually first
-2. Provide "FINAL RANKING:" header
-3. Numbered list format: "1. Response C", "2. Response A", etc.
-4. No additional text after ranking section
-```
+### Stage 1: WIDEN Prompt Structure
+The WIDEN stage systematically explores six dimensions:
+1. Personas (stakeholders)
+2. Pains (specific problems)
+3. Workarounds (current solutions)
+4. Metrics (measurable indicators)
+5. Insights (patterns and observations)
+6. Risks (obstacles and constraints)
 
-This strict format allows reliable parsing while still getting thoughtful evaluations.
+This ensures comprehensive problem space exploration before diving into solutions.
 
-### De-anonymization Strategy
-- Models receive: "Response A", "Response B", etc.
-- Backend creates mapping: `{"Response A": "openai/gpt-5.1", ...}`
-- Frontend displays model names in **bold** for readability
-- Users see explanation that original evaluation used anonymous labels
-- This prevents bias while maintaining transparency
+### Stage 2: DIAGNOSE with 5-Why
+The 5-Why technique forces deep analysis:
+- Selects most critical pain point from Stage 1
+- Iteratively asks "why" five times to uncover root causes
+- Proposes 2-3 hypotheses with supporting/disproving evidence
+- Assesses likelihood (High/Medium/Low) for each hypothesis
+
+This prevents jumping to solutions before understanding the problem.
+
+### Stage 3: CONVERGE with Clustering
+Solution ideas are organized into four categories:
+- 🔧 Process & Workflow
+- 📊 Analytics & Insights
+- 🤖 ML & Automation (including generative AI)
+- 💡 Other Innovations
+
+Each cluster includes impact/effort assessment and quick win identification.
+
+### Sequential Stage Execution
+Unlike the original council design (parallel execution), brainstorming stages are sequential:
+- Stage 2 requires Stage 1 output as context
+- Stage 3 requires both Stage 1 and Stage 2 outputs
+- This enables progressive refinement and depth
 
 ### Error Handling Philosophy
-- Continue with successful responses if some models fail (graceful degradation)
-- Never fail the entire request due to single model failure
-- Log errors but don't expose to user unless all models fail
+- Each stage can fail independently without breaking the flow
+- Error messages are user-friendly
+- Graceful degradation when API calls fail
 
 ### UI/UX Transparency
-- All raw outputs are inspectable via tabs
-- Parsed rankings shown below raw text for validation
-- Users can verify system's interpretation of model outputs
-- This builds trust and allows debugging of edge cases
+- All stages visible in order
+- Clear stage titles and descriptions
+- Progressive loading indicators
+- Markdown rendering for structured output
 
 ## Important Implementation Details
 
 ### Relative Imports
-All backend modules use relative imports (e.g., `from .config import ...`) not absolute imports. This is critical for Python's module system to work correctly when running as `python -m backend.main`.
+All backend modules use relative imports (e.g., `from .config import ...`). Run as `python -m backend.main` from project root.
 
 ### Port Configuration
-- Backend: 8001 (changed from 8000 to avoid conflict)
+- Backend: 8001
 - Frontend: 5173 (Vite default)
 - Update both `backend/main.py` and `frontend/src/api.js` if changing
 
 ### Markdown Rendering
-All ReactMarkdown components must be wrapped in `<div className="markdown-content">` for proper spacing. This class is defined globally in `index.css`.
+All ReactMarkdown components must be wrapped in `<div className="markdown-content">` for proper spacing.
 
 ### Model Configuration
-Models are hardcoded in `backend/config.py`. Chairman can be same or different from council members. The current default is Gemini as chairman per user preference.
+Models are configured in `backend/config.py`. The PRIMARY_MODEL is used for all three stages. BRAINSTORM_MODELS can be extended for multi-perspective brainstorming (future enhancement).
 
 ## Common Gotchas
 
-1. **Module Import Errors**: Always run backend as `python -m backend.main` from project root, not from backend directory
+1. **Module Import Errors**: Always run backend as `python -m backend.main` from project root
 2. **CORS Issues**: Frontend must match allowed origins in `main.py` CORS middleware
-3. **Ranking Parse Failures**: If models don't follow format, fallback regex extracts any "Response X" patterns in order
-4. **Missing Metadata**: Metadata is ephemeral (not persisted), only available in API responses
+3. **Missing OpenAI SDK**: Ensure `openai` package is installed via `uv sync`
+4. **API Key**: Must be set in `.env` file as `OPENAI_API_KEY`
 
 ## Future Enhancement Ideas
 
-- Configurable council/chairman via UI instead of config file
-- Streaming responses instead of batch loading
-- Export conversations to markdown/PDF
-- Model performance analytics over time
-- Custom ranking criteria (not just accuracy/insight)
-- Support for reasoning models (o1, etc.) with special handling
-
-## Testing Notes
-
-Use `test_openrouter.py` to verify API connectivity and test different model identifiers before adding to council. The script tests both streaming and non-streaming modes.
+- Multi-model perspectives (use BRAINSTORM_MODELS for diverse viewpoints)
+- Export brainstorming sessions to structured formats (PDF, Markdown)
+- Visual mind mapping of Stage 1 outputs
+- Integration with project management tools
+- Templates for common brainstorming scenarios
+- Collaborative brainstorming (multi-user sessions)
+- Stage-specific temperature tuning
+- Custom prompt templates per stage
 
 ## Data Flow Summary
 
 ```
-User Query
+User Challenge
     ↓
-Stage 1: Parallel queries → [individual responses]
+Stage 1 (WIDEN): Explore problem space → personas, pains, workarounds, metrics, insights, risks
     ↓
-Stage 2: Anonymize → Parallel ranking queries → [evaluations + parsed rankings]
+Stage 2 (DIAGNOSE): 5-Why analysis → root cause hypotheses with evidence
     ↓
-Aggregate Rankings Calculation → [sorted by avg position]
-    ↓
-Stage 3: Chairman synthesis with full context
+Stage 3 (CONVERGE): Generate ideas → cluster into categories → prioritize
     ↓
 Return: {stage1, stage2, stage3, metadata}
     ↓
-Frontend: Display with tabs + validation UI
+Frontend: Display progressively with clear stage separation
 ```
 
-The entire flow is async/parallel where possible to minimize latency.
+The entire flow is async but sequential (not parallel) to maintain context across stages.
+
+## Differences from Original LLM Council
+
+This codebase was transformed from the original LLM Council project:
+
+**What Changed:**
+- Replaced OpenRouter with OpenAI API
+- Changed from parallel multi-model evaluation to sequential single-model brainstorming
+- Removed anonymization and peer ranking logic
+- Simplified data structures (no more label_to_model mappings)
+- Updated all prompts to match brainstorming framework
+- Redesigned UI for single-model workflow
+
+**What Stayed:**
+- Overall 3-stage structure
+- FastAPI backend with streaming support
+- React frontend with stage-based UI
+- JSON storage system
+- Markdown rendering approach
+- Port configuration (8001/5173)

@@ -1,24 +1,41 @@
-# LLM Council
+# Brainstorming Partner
 
-![llmcouncil](header.jpg)
+A structured AI brainstorming tool that helps you explore challenges using a 3-stage framework: WIDEN → DIAGNOSE → CONVERGE.
 
-The idea of this repo is that instead of asking a question to your favorite LLM provider (e.g. OpenAI GPT 5.1, Google Gemini 3.0 Pro, Anthropic Claude Sonnet 4.5, xAI Grok 4, eg.c), you can group them into your "LLM Council". This repo is a simple, local web app that essentially looks like ChatGPT except it uses OpenRouter to send your query to multiple LLMs, it then asks them to review and rank each other's work, and finally a Chairman LLM produces the final response.
+## How It Works
 
-In a bit more detail, here is what happens when you submit a query:
+When you submit a challenge or problem, the system guides you through three stages:
 
-1. **Stage 1: First opinions**. The user query is given to all LLMs individually, and the responses are collected. The individual responses are shown in a "tab view", so that the user can inspect them all one by one.
-2. **Stage 2: Review**. Each individual LLM is given the responses of the other LLMs. Under the hood, the LLM identities are anonymized so that the LLM can't play favorites when judging their outputs. The LLM is asked to rank them in accuracy and insight.
-3. **Stage 3: Final response**. The designated Chairman of the LLM Council takes all of the model's responses and compiles them into a single final answer that is presented to the user.
+1. **Stage 1: WIDEN** - Rapidly surface the problem space
+   - Personas: Who are the key stakeholders?
+   - Pains: What specific pain points exist?
+   - Workarounds: What makeshift solutions are people using?
+   - Metrics: What can be measured?
+   - Insights: What non-obvious patterns exist?
+   - Risks: What obstacles could impede progress?
 
-## Vibe Code Alert
+2. **Stage 2: DIAGNOSE** - Drill into root causes
+   - Select the most critical pain point
+   - Apply 5-Why technique to uncover root causes
+   - Propose root cause hypotheses
+   - Identify supporting and disproving evidence
+   - Assess likelihood of each hypothesis
 
-This project was 99% vibe coded as a fun Saturday hack because I wanted to explore and evaluate a number of LLMs side by side in the process of [reading books together with LLMs](https://x.com/karpathy/status/1990577951671509438). It's nice and useful to see multiple responses side by side, and also the cross-opinions of all LLMs on each other's outputs. I'm not going to support it in any way, it's provided here as is for other people's inspiration and I don't intend to improve it. Code is ephemeral now and libraries are over, ask your LLM to change it in whatever way you like.
+3. **Stage 3: CONVERGE** - Generate and cluster solutions
+   - Generate 10-15 diverse solution ideas
+   - Cluster into categories:
+     - 🔧 Process & Workflow
+     - 📊 Analytics & Insights
+     - 🤖 ML & Automation (including generative AI)
+     - 💡 Other Innovations
+   - Prioritize by impact and effort
+   - Identify quick wins
 
 ## Setup
 
 ### 1. Install Dependencies
 
-The project uses [uv](https://docs.astral.sh/uv/) for project management.
+The project uses [uv](https://docs.astral.sh/uv/) for Python package management.
 
 **Backend:**
 ```bash
@@ -37,24 +54,24 @@ cd ..
 Create a `.env` file in the project root:
 
 ```bash
-OPENROUTER_API_KEY=sk-or-v1-...
+OPENAI_API_KEY=sk-...
 ```
 
-Get your API key at [openrouter.ai](https://openrouter.ai/). Make sure to purchase the credits you need, or sign up for automatic top up.
+Get your API key from [OpenAI Platform](https://platform.openai.com/api-keys).
 
 ### 3. Configure Models (Optional)
 
-Edit `backend/config.py` to customize the council:
+Edit `backend/config.py` to customize the models:
 
 ```python
-COUNCIL_MODELS = [
-    "openai/gpt-5.1",
-    "google/gemini-3-pro-preview",
-    "anthropic/claude-sonnet-4.5",
-    "x-ai/grok-4",
-]
+# Primary model for brainstorming
+PRIMARY_MODEL = "gpt-4o"
 
-CHAIRMAN_MODEL = "google/gemini-3-pro-preview"
+# Alternative models for multi-perspective brainstorming
+BRAINSTORM_MODELS = [
+    "gpt-4o",
+    "gpt-4o-mini",
+]
 ```
 
 ## Running the Application
@@ -81,7 +98,17 @@ Then open http://localhost:5173 in your browser.
 
 ## Tech Stack
 
-- **Backend:** FastAPI (Python 3.10+), async httpx, OpenRouter API
+- **Backend:** FastAPI (Python 3.10+), OpenAI Python SDK
 - **Frontend:** React + Vite, react-markdown for rendering
 - **Storage:** JSON files in `data/conversations/`
 - **Package Management:** uv for Python, npm for JavaScript
+
+## Brainstorming Framework
+
+This tool implements a structured approach to problem-solving:
+
+- **WIDEN**: Divergent thinking to explore the full problem space
+- **DIAGNOSE**: Convergent analysis to identify root causes
+- **CONVERGE**: Ideation and categorization of solutions
+
+The framework is particularly useful for product challenges, technical problems, and strategic planning.
