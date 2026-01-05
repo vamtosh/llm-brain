@@ -67,49 +67,38 @@ export const api = {
   },
 
   /**
-   * Send a message and receive streaming updates.
-   * @param {string} conversationId - The conversation ID
-   * @param {string} content - The message content
-   * @param {function} onEvent - Callback function for each event: (eventType, data) => void
-   * @returns {Promise<void>}
+   * Get stage status for a conversation.
    */
-  async sendMessageStream(conversationId, content, onEvent) {
+  async getStageStatus(conversationId) {
     const response = await fetch(
-      `${API_BASE}/api/conversations/${conversationId}/message/stream`,
+      `${API_BASE}/api/conversations/${conversationId}/stage-status`
+    );
+    if (!response.ok) {
+      throw new Error('Failed to get stage status');
+    }
+    return response.json();
+  },
+
+  /**
+   * Advance to the next stage.
+   * @param {string} conversationId - The conversation ID
+   * @param {object} userInput - Optional user input for stage transition
+   */
+  async advanceStage(conversationId, userInput = null) {
+    const response = await fetch(
+      `${API_BASE}/api/conversations/${conversationId}/advance-stage`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ user_input: userInput }),
       }
     );
-
     if (!response.ok) {
-      throw new Error('Failed to send message');
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to advance stage');
     }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const chunk = decoder.decode(value);
-      const lines = chunk.split('\n');
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          try {
-            const event = JSON.parse(data);
-            onEvent(event.type, event);
-          } catch (e) {
-            console.error('Failed to parse SSE event:', e);
-          }
-        }
-      }
-    }
+    return response.json();
   },
 };

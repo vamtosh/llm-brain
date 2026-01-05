@@ -1,16 +1,19 @@
-"""FastAPI backend for LLM Council."""
+"""FastAPI backend for Brainstorming Partner with PostgreSQL."""
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import List, Dict, Any
-import uuid
+from typing import List, Dict, Any, Optional
 import json
-import asyncio
 
-from . import storage
-from .brainstorm import run_full_brainstorm, generate_conversation_title, stage1_widen, stage2_diagnose, stage3_converge
+from .database.client import init_db, close_db
+from .database.repositories import (
+    ConversationRepository,
+    MessageRepository,
+    StageContextRepository,
+)
+from .stage_manager import StageManager, Stage
+from .brainstorm import generate_conversation_title, process_stage_message
 
 app = FastAPI(title="Brainstorming Partner API")
 
@@ -24,6 +27,20 @@ app.add_middleware(
 )
 
 
+# Database lifecycle
+@app.on_event("startup")
+async def startup():
+    """Initialize database connection pool on startup."""
+    await init_db()
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    """Close database connection pool on shutdown."""
+    await close_db()
+
+
+# Pydantic models
 class CreateConversationRequest(BaseModel):
     """Request to create a new conversation."""
     pass
@@ -34,173 +51,214 @@ class SendMessageRequest(BaseModel):
     content: str
 
 
+class AdvanceStageRequest(BaseModel):
+    """Request to advance to the next stage."""
+    user_input: Optional[Dict[str, Any]] = None
+
+
 class ConversationMetadata(BaseModel):
     """Conversation metadata for list view."""
     id: str
     created_at: str
     title: str
     message_count: int
+    current_stage: str
 
 
-class Conversation(BaseModel):
-    """Full conversation with all messages."""
-    id: str
-    created_at: str
-    title: str
-    messages: List[Dict[str, Any]]
-
-
+# Health check
 @app.get("/")
 async def root():
     """Health check endpoint."""
     return {"status": "ok", "service": "Brainstorming Partner API"}
 
 
-@app.get("/api/conversations", response_model=List[ConversationMetadata])
+# Conversation endpoints
+@app.get("/api/conversations")
 async def list_conversations():
     """List all conversations (metadata only)."""
-    return storage.list_conversations()
+    conversations = await ConversationRepository.list()
+    return conversations
 
 
-@app.post("/api/conversations", response_model=Conversation)
+@app.post("/api/conversations")
 async def create_conversation(request: CreateConversationRequest):
     """Create a new conversation."""
-    conversation_id = str(uuid.uuid4())
-    conversation = storage.create_conversation(conversation_id)
+    conversation = await ConversationRepository.create()
     return conversation
 
 
-@app.get("/api/conversations/{conversation_id}", response_model=Conversation)
+@app.get("/api/conversations/{conversation_id}")
 async def get_conversation(conversation_id: str):
     """Get a specific conversation with all its messages."""
-    conversation = storage.get_conversation(conversation_id)
-    if conversation is None:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    return conversation
-
-
-@app.post("/api/conversations/{conversation_id}/message")
-async def send_message(conversation_id: str, request: SendMessageRequest):
-    """
-    Send a message and run the 3-stage brainstorming process.
-    Returns the complete response with all stages.
-    """
-    # Check if conversation exists
-    conversation = storage.get_conversation(conversation_id)
+    conversation = await ConversationRepository.get(conversation_id)
     if conversation is None:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    # Check if this is the first message
-    is_first_message = len(conversation["messages"]) == 0
+    # Get all messages
+    messages = await MessageRepository.list(conversation_id)
 
-    # Add user message
-    storage.add_user_message(conversation_id, request.content)
-
-    # If this is the first message, generate a title
-    if is_first_message:
-        title = await generate_conversation_title(request.content)
-        storage.update_conversation_title(conversation_id, title)
-
-    # Run the 3-stage brainstorming process
-    stage1_result, stage2_result, stage3_result, metadata = await run_full_brainstorm(
-        request.content
-    )
-
-    # Add assistant message with all stages
-    storage.add_assistant_message(
-        conversation_id,
-        stage1_result,
-        stage2_result,
-        stage3_result
-    )
-
-    # Return the complete response with metadata
     return {
-        "stage1": stage1_result,
-        "stage2": stage2_result,
-        "stage3": stage3_result,
-        "metadata": metadata
+        **conversation,
+        "messages": messages
     }
 
 
-@app.post("/api/conversations/{conversation_id}/message/stream")
-async def send_message_stream(conversation_id: str, request: SendMessageRequest):
-    """
-    Send a message and stream the 3-stage brainstorming process.
-    Returns Server-Sent Events as each stage completes.
-    """
-    # Check if conversation exists
-    conversation = storage.get_conversation(conversation_id)
+# Stage management endpoints
+@app.get("/api/conversations/{conversation_id}/stage-status")
+async def get_stage_status(conversation_id: str):
+    """Get current stage status and advancement info."""
+    conversation = await ConversationRepository.get(conversation_id)
     if conversation is None:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    # Check if this is the first message
-    is_first_message = len(conversation["messages"]) == 0
+    current_stage = conversation.get("current_stage")
+    next_stage = StageManager.get_next_stage(current_stage)
 
-    async def event_generator():
-        try:
-            # Add user message
-            storage.add_user_message(conversation_id, request.content)
+    # Get stage context if available
+    stage_context = await StageContextRepository.get(conversation_id, current_stage)
 
-            # Start title generation in parallel (don't await yet)
-            title_task = None
-            if is_first_message:
-                title_task = asyncio.create_task(generate_conversation_title(request.content))
+    return {
+        "current_stage": current_stage,
+        "next_stage": next_stage,
+        "can_advance": StageManager.can_advance(current_stage, stage_context),
+        "requires_input": StageManager.requires_user_input(current_stage, next_stage) if next_stage else {}
+    }
 
-            # Stage 1: WIDEN
-            yield f"data: {json.dumps({'type': 'stage1_start'})}\n\n"
-            stage1_result = await stage1_widen(request.content)
-            yield f"data: {json.dumps({'type': 'stage1_complete', 'data': stage1_result})}\n\n"
 
-            # Stage 2: DIAGNOSE
-            yield f"data: {json.dumps({'type': 'stage2_start'})}\n\n"
-            stage2_result = await stage2_diagnose(request.content, stage1_result.get('response', ''))
-            yield f"data: {json.dumps({'type': 'stage2_complete', 'data': stage2_result})}\n\n"
+@app.post("/api/conversations/{conversation_id}/advance-stage")
+async def advance_stage(conversation_id: str, request: AdvanceStageRequest):
+    """Advance to the next stage."""
+    conversation = await ConversationRepository.get(conversation_id)
+    if conversation is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
 
-            # Stage 3: CONVERGE
-            yield f"data: {json.dumps({'type': 'stage3_start'})}\n\n"
-            stage3_result = await stage3_converge(
-                request.content,
-                stage1_result.get('response', ''),
-                stage2_result.get('response', '')
-            )
-            yield f"data: {json.dumps({'type': 'stage3_complete', 'data': stage3_result})}\n\n"
+    current_stage = conversation.get("current_stage")
+    next_stage = StageManager.get_next_stage(current_stage)
 
-            # Wait for title generation if it was started
-            if title_task:
-                title = await title_task
-                storage.update_conversation_title(conversation_id, title)
-                yield f"data: {json.dumps({'type': 'title_complete', 'data': {'title': title}})}\n\n"
+    if next_stage is None:
+        raise HTTPException(status_code=400, detail="Already at final stage")
 
-            # Metadata
-            metadata = {
-                "model": stage1_result.get('model'),
-                "stages_completed": ["widen", "diagnose", "converge"]
-            }
+    # Validate transition
+    if not StageManager.validate_stage_transition(current_stage, next_stage):
+        raise HTTPException(status_code=400, detail="Invalid stage transition")
 
-            # Save complete assistant message
-            storage.add_assistant_message(
-                conversation_id,
-                stage1_result,
-                stage2_result,
-                stage3_result
-            )
+    # Check if user input is required
+    input_req = StageManager.requires_user_input(current_stage, next_stage)
+    if input_req.get("required") and not request.user_input:
+        raise HTTPException(
+            status_code=400,
+            detail=f"User input required: {input_req.get('description')}"
+        )
 
-            # Send completion event
-            yield f"data: {json.dumps({'type': 'complete', 'metadata': metadata})}\n\n"
+    # Get messages from current stage to create context
+    current_messages = await MessageRepository.list_by_stage(conversation_id, current_stage)
 
-        except Exception as e:
-            # Send error event
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+    # Compile output from current stage (last assistant message)
+    current_output = ""
+    for msg in reversed(current_messages):
+        if msg["role"] == "assistant":
+            current_output = msg["content"]
+            break
 
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-        }
+    # Mark current stage as complete
+    await StageContextRepository.mark_complete(
+        conversation_id,
+        current_stage,
+        current_output
     )
+
+    # Create or update context for new stage
+    await StageContextRepository.create_or_update(
+        conversation_id,
+        next_stage,
+        request.user_input or {},
+        None,
+        None
+    )
+
+    # Update conversation's current stage
+    await ConversationRepository.update_stage(conversation_id, next_stage)
+
+    return {
+        "success": True,
+        "previous_stage": current_stage,
+        "current_stage": next_stage,
+        "message": f"Advanced from {current_stage} to {next_stage}"
+    }
+
+
+# Message endpoints
+@app.post("/api/conversations/{conversation_id}/message")
+async def send_message(conversation_id: str, request: SendMessageRequest):
+    """
+    Send a message within the current stage.
+    Auto-saves message and responds within stage context.
+    """
+    conversation = await ConversationRepository.get(conversation_id)
+    if conversation is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    current_stage = conversation.get("current_stage")
+
+    if current_stage == Stage.COMPLETE.value:
+        raise HTTPException(status_code=400, detail="Brainstorming session is complete")
+
+    # Check if this is the first user message
+    messages = await MessageRepository.list(conversation_id)
+    is_first_message = len(messages) == 0
+
+    # Auto-save user message
+    await MessageRepository.create(
+        conversation_id=conversation_id,
+        role="user",
+        content=request.content,
+        stage=current_stage
+    )
+
+    # Generate title if first message
+    if is_first_message:
+        title = await generate_conversation_title(request.content)
+        await ConversationRepository.update_title(conversation_id, title)
+
+    # Get context from previous stages
+    all_stage_contexts = await StageContextRepository.get_all(conversation_id)
+    previous_stages = {sc["stage"]: sc for sc in all_stage_contexts}
+
+    # Get current stage context
+    current_context = await StageContextRepository.get(conversation_id, current_stage)
+    user_selections = current_context.get("context_data", {}) if current_context else {}
+
+    # Build context for current stage
+    context = StageManager.build_context_for_stage(
+        current_stage,
+        previous_stages,
+        user_selections
+    )
+
+    # Process message within current stage
+    response_data = await process_stage_message(
+        stage=current_stage,
+        user_message=request.content,
+        context=context
+    )
+
+    # Auto-save assistant message
+    await MessageRepository.create(
+        conversation_id=conversation_id,
+        role="assistant",
+        content=response_data.get("content", ""),
+        stage=current_stage,
+        reasoning=response_data.get("reasoning"),
+        metadata=response_data.get("metadata", {})
+    )
+
+    return {
+        "stage": current_stage,
+        "content": response_data.get("content", ""),
+        "reasoning": response_data.get("reasoning"),
+        "metadata": response_data.get("metadata", {}),
+        "title": conversation.get("title") if is_first_message else None
+    }
 
 
 if __name__ == "__main__":

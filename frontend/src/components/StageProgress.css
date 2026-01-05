@@ -1,0 +1,126 @@
+.stage-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.stage-progress-container {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.stage-indicator {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  background: white;
+  border-radius: 12px;
+  min-width: 140px;
+  transition: all 0.3s ease;
+  border: 2px solid #e0e0e0;
+}
+
+.stage-indicator.active {
+  border-color: #4a90e2;
+  box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+  transform: scale(1.05);
+}
+
+.stage-indicator.completed {
+  border-color: #4caf50;
+  background: #f1f8f4;
+}
+
+.stage-indicator.pending {
+  opacity: 0.6;
+}
+
+.stage-icon {
+  font-size: 32px;
+}
+
+.stage-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+}
+
+.stage-description {
+  font-size: 11px;
+  color: #666;
+  text-align: center;
+}
+
+.checkmark {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #4caf50;
+  color: white;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  border: 2px solid #4a90e2;
+  animation: pulse 2s infinite;
+  pointer-events: none;
+}
+
+@keyframes pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.2);
+    opacity: 0;
+  }
+}
+
+.stage-connector {
+  flex: 1;
+  height: 3px;
+  background: #e0e0e0;
+  margin: 0 8px;
+  position: relative;
+}
+
+.stage-connector.completed {
+  background: #4caf50;
+}
+
+.stage-connector::after {
+  content: '→';
+  position: absolute;
+  top: 50%;
+  right: -12px;
+  transform: translateY(-50%);
+  color: #999;
+  font-size: 18px;
+}
+
+.stage-connector.completed::after {
+  color: #4caf50;
+}

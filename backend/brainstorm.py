@@ -1,8 +1,54 @@
 """3-stage Brainstorming orchestration."""
 
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from .openai_client import query_model
 from .config import PRIMARY_MODEL
+from .stage_manager import StageManager
+
+
+async def process_stage_message(
+    stage: str,
+    user_message: str,
+    context: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Process a user message within a specific stage.
+
+    Args:
+        stage: Current stage (widen, diagnose, converge)
+        user_message: User's message/question
+        context: Context from previous stages and user selections
+
+    Returns:
+        Dict with content, reasoning, and metadata
+    """
+    # Get stage-specific system prompt with context
+    system_prompt = StageManager.get_system_prompt(stage, context)
+
+    # Build messages for the model
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message}
+    ]
+
+    # Query the model
+    response = await query_model(PRIMARY_MODEL, messages)
+
+    if response is None:
+        return {
+            "content": f"Error: Unable to generate response for {stage} stage.",
+            "reasoning": None,
+            "metadata": {"error": True}
+        }
+
+    return {
+        "content": response.get('content', ''),
+        "reasoning": response.get('reasoning'),  # Will be populated when we add reasoning display
+        "metadata": {
+            "model": PRIMARY_MODEL,
+            "stage": stage
+        }
+    }
 
 
 async def stage1_widen(challenge: str) -> Dict[str, Any]:
