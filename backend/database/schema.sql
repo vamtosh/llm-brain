@@ -17,7 +17,7 @@ CREATE TABLE conversations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     title VARCHAR(500) DEFAULT 'New Brainstorm',
-    current_stage VARCHAR(20) DEFAULT 'widen' CHECK (current_stage IN ('widen', 'diagnose', 'converge', 'complete')),
+    current_stage VARCHAR(20) DEFAULT 'widen' CHECK (current_stage IN ('widen', 'diagnose', 'converge', 'select_solution', 'generate_prd', 'complete')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -32,7 +32,7 @@ CREATE TABLE messages (
     conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE NOT NULL,
     role VARCHAR(20) NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
     content TEXT NOT NULL,
-    stage VARCHAR(20) CHECK (stage IN ('widen', 'diagnose', 'converge')),
+    stage VARCHAR(20) CHECK (stage IN ('widen', 'diagnose', 'converge', 'select_solution', 'generate_prd')),
     reasoning TEXT,  -- GPT-5 reasoning process
     metadata JSONB DEFAULT '{}',  -- Flexible storage for additional data
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -47,7 +47,7 @@ CREATE INDEX idx_messages_stage ON messages(stage);
 CREATE TABLE stage_contexts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE NOT NULL,
-    stage VARCHAR(20) NOT NULL CHECK (stage IN ('widen', 'diagnose', 'converge')),
+    stage VARCHAR(20) NOT NULL CHECK (stage IN ('widen', 'diagnose', 'converge', 'select_solution', 'generate_prd')),
     context_data JSONB NOT NULL DEFAULT '{}',  -- Stores pain points, selections, etc.
     output TEXT,  -- Final output when stage is completed
     completed_at TIMESTAMP WITH TIME ZONE,

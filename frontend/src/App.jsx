@@ -11,6 +11,7 @@ function App() {
   const [stageStatus, setStageStatus] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isAdvancing, setIsAdvancing] = useState(false);
+  const [advancementContext, setAdvancementContext] = useState(null); // Store user input during advancement
 
   // Load conversations on mount
   useEffect(() => {
@@ -27,7 +28,25 @@ function App() {
 
   const loadConversations = async () => {
     try {
-      const convs = await api.listConversations();
+      let convs = await api.listConversations();
+
+      // Auto-delete empty "New Brainstorm" conversations
+      const emptyBrainstorms = convs.filter(
+        c => (c.title === 'New Brainstorm' || !c.title) && c.message_count === 0
+      );
+
+      if (emptyBrainstorms.length > 0) {
+        // Delete all empty brainstorms
+        await Promise.all(
+          emptyBrainstorms.map(c => api.deleteConversation(c.id).catch(err => {
+            console.error('Failed to auto-delete conversation:', err);
+          }))
+        );
+
+        // Reload conversations after cleanup
+        convs = await api.listConversations();
+      }
+
       setConversations(convs);
     } catch (error) {
       console.error('Failed to load conversations:', error);
@@ -69,6 +88,25 @@ function App() {
     setCurrentConversationId(id);
   };
 
+  const handleDeleteConversation = async (id) => {
+    try {
+      await api.deleteConversation(id);
+
+      // If deleted conversation was currently selected, clear selection
+      if (id === currentConversationId) {
+        setCurrentConversationId(null);
+        setCurrentConversation(null);
+        setStageStatus(null);
+      }
+
+      // Reload conversations list
+      await loadConversations();
+    } catch (error) {
+      console.error('Failed to delete conversation:', error);
+      alert('Failed to delete conversation. Please try again.');
+    }
+  };
+
   const handleSendMessage = async (content) => {
     if (!currentConversationId) return;
 
@@ -84,12 +122,13 @@ function App() {
       // Send message and get response
       const response = await api.sendMessage(currentConversationId, content);
 
-      // Add assistant message to UI
+      // Add assistant message to UI (include stage for proper filtering)
       const assistantMessage = {
         role: 'assistant',
         content: response.content,
         reasoning: response.reasoning,
         metadata: response.metadata,
+        stage: response.stage || stageStatus?.current_stage,
       };
 
       setCurrentConversation((prev) => ({
@@ -117,17 +156,39 @@ function App() {
   const handleAdvanceStage = async (userInput = null) => {
     if (!currentConversationId) return;
 
+    // Optimistically update to next stage immediately
+    const currentStage = stageStatus?.current_stage;
+    const nextStage = stageStatus?.next_stage;
+
+    // Store the advancement context (e.g., selected pain point)
+    setAdvancementContext(userInput);
     setIsAdvancing(true);
+
+    // Immediately update stage status to show next stage
+    if (nextStage) {
+      setStageStatus((prev) => ({
+        ...prev,
+        current_stage: nextStage,
+      }));
+
+      // Update conversation's current_stage in local state
+      setCurrentConversation((prev) => ({
+        ...prev,
+        current_stage: nextStage,
+      }));
+    }
+
     try {
       const response = await api.advanceStage(currentConversationId, userInput);
 
-      // Add the automatic assistant message to UI
+      // Add the automatic assistant message to UI (include stage for proper filtering)
       if (response.content) {
         const assistantMessage = {
           role: 'assistant',
           content: response.content,
           reasoning: response.reasoning,
           metadata: response.metadata,
+          stage: response.current_stage,  // The stage this message belongs to
         };
 
         setCurrentConversation((prev) => ({
@@ -135,9 +196,6 @@ function App() {
           messages: [...prev.messages, assistantMessage],
         }));
       }
-
-      // Reload conversation to get updated stage
-      await loadConversation(currentConversationId);
 
       // Reload stage status
       await loadStageStatus(currentConversationId);
@@ -147,8 +205,22 @@ function App() {
     } catch (error) {
       console.error('Failed to advance stage:', error);
       alert('Failed to advance to next stage. Please try again.');
+
+      // Revert optimistic update on error
+      if (currentStage) {
+        setStageStatus((prev) => ({
+          ...prev,
+          current_stage: currentStage,
+        }));
+
+        setCurrentConversation((prev) => ({
+          ...prev,
+          current_stage: currentStage,
+        }));
+      }
     } finally {
       setIsAdvancing(false);
+      setAdvancementContext(null); // Clear context after advancement completes
     }
   };
 
@@ -159,6 +231,7 @@ function App() {
         currentConversationId={currentConversationId}
         onSelectConversation={handleSelectConversation}
         onNewConversation={handleNewConversation}
+        onDeleteConversation={handleDeleteConversation}
       />
       <ChatInterface
         conversation={currentConversation}
@@ -167,6 +240,7 @@ function App() {
         onAdvanceStage={handleAdvanceStage}
         isLoading={isLoading}
         isAdvancing={isAdvancing}
+        advancementContext={advancementContext}
       />
     </div>
   );

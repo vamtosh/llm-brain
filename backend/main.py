@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
+from datetime import datetime
 import json
 
 from .database.client import init_db, close_db
@@ -103,6 +104,17 @@ async def get_conversation(conversation_id: str):
     }
 
 
+@app.delete("/api/conversations/{conversation_id}")
+async def delete_conversation(conversation_id: str):
+    """Delete a conversation and all its associated data."""
+    conversation = await ConversationRepository.get(conversation_id)
+    if conversation is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    await ConversationRepository.delete(conversation_id)
+    return {"success": True, "message": "Conversation deleted successfully"}
+
+
 # Stage management endpoints
 @app.get("/api/conversations/{conversation_id}/stage-status")
 async def get_stage_status(conversation_id: str):
@@ -143,8 +155,10 @@ async def advance_stage(conversation_id: str, request: AdvanceStageRequest):
         raise HTTPException(status_code=400, detail="Invalid stage transition")
 
     # Check if user input is required
+    # Special case: SELECT_SOLUTION stage doesn't need input to advance TO it,
+    # but will need input when advancing FROM it to GENERATE_PRD
     input_req = StageManager.requires_user_input(current_stage, next_stage)
-    if input_req.get("required") and not request.user_input:
+    if input_req.get("required") and not request.user_input and next_stage != "select_solution":
         raise HTTPException(
             status_code=400,
             detail=f"User input required: {input_req.get('description')}"
@@ -160,56 +174,63 @@ async def advance_stage(conversation_id: str, request: AdvanceStageRequest):
             current_output = msg["content"]
             break
 
-    # Mark current stage as complete
-    await StageContextRepository.mark_complete(
-        conversation_id,
-        current_stage,
-        current_output
-    )
-
-    # Create or update context for new stage
+    # Mark current stage as complete (create or update)
     await StageContextRepository.create_or_update(
         conversation_id,
-        next_stage,
-        request.user_input or {},
-        None,
-        None
+        current_stage,
+        {},  # Empty context data for completion
+        current_output,
+        datetime.utcnow()
     )
+
+    # Create or update context for new stage (skip for 'complete' stage - it's just a marker)
+    if next_stage != "complete":
+        await StageContextRepository.create_or_update(
+            conversation_id,
+            next_stage,
+            request.user_input or {},
+            None,
+            None
+        )
 
     # Update conversation's current stage
     await ConversationRepository.update_stage(conversation_id, next_stage)
 
     # Automatically generate the first response for the new stage
-    # Get all previous stage contexts
-    all_stage_contexts = await StageContextRepository.get_all(conversation_id)
-    previous_stages = {sc["stage"]: sc for sc in all_stage_contexts}
+    # Skip auto-generation for SELECT_SOLUTION (frontend-only stage)
+    response_data = {"content": "", "reasoning": None, "metadata": {}}
 
-    # Build context for the new stage
-    context = StageManager.build_context_for_stage(
-        next_stage,
-        previous_stages,
-        request.user_input or {}
-    )
+    if next_stage != "select_solution":
+        # Get all previous stage contexts
+        all_stage_contexts = await StageContextRepository.get_all(conversation_id)
+        previous_stages = {sc["stage"]: sc for sc in all_stage_contexts}
 
-    # Create an automatic prompt based on the stage
-    auto_prompt = StageManager.get_auto_prompt_for_stage(next_stage, context)
+        # Build context for the new stage
+        context = StageManager.build_context_for_stage(
+            next_stage,
+            previous_stages,
+            request.user_input or {}
+        )
 
-    # Process the automatic message
-    response_data = await process_stage_message(
-        stage=next_stage,
-        user_message=auto_prompt,
-        context=context
-    )
+        # Create an automatic prompt based on the stage
+        auto_prompt = StageManager.get_auto_prompt_for_stage(next_stage, context)
 
-    # Save the automatic assistant response
-    await MessageRepository.create(
-        conversation_id=conversation_id,
-        role="assistant",
-        content=response_data.get("content", ""),
-        stage=next_stage,
-        reasoning=response_data.get("reasoning"),
-        metadata=response_data.get("metadata", {})
-    )
+        # Process the automatic message
+        response_data = await process_stage_message(
+            stage=next_stage,
+            user_message=auto_prompt,
+            context=context
+        )
+
+        # Save the automatic assistant response
+        await MessageRepository.create(
+            conversation_id=conversation_id,
+            role="assistant",
+            content=response_data.get("content", ""),
+            stage=next_stage,
+            reasoning=response_data.get("reasoning"),
+            metadata=response_data.get("metadata", {})
+        )
 
     return {
         "success": True,

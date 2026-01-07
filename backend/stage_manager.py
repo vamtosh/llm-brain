@@ -9,13 +9,15 @@ class Stage(str, Enum):
     WIDEN = "widen"
     DIAGNOSE = "diagnose"
     CONVERGE = "converge"
+    SELECT_SOLUTION = "select_solution"
+    GENERATE_PRD = "generate_prd"
     COMPLETE = "complete"
 
 
 class StageManager:
     """Manages stage progression and context."""
 
-    STAGE_ORDER = [Stage.WIDEN, Stage.DIAGNOSE, Stage.CONVERGE, Stage.COMPLETE]
+    STAGE_ORDER = [Stage.WIDEN, Stage.DIAGNOSE, Stage.CONVERGE, Stage.SELECT_SOLUTION, Stage.GENERATE_PRD, Stage.COMPLETE]
 
     # Stage-specific system prompts (optimized for GPT-5.1)
     STAGE_PROMPTS = {
@@ -208,6 +210,171 @@ Structure your response in Markdown with the following exact format:
 - Provide specific implementation details, not generic advice
 - Persist until all sections are complete before finishing
 - Focus on quick wins that demonstrate clear value
+</quality_standards>""",
+
+        Stage.SELECT_SOLUTION: """This is a transition stage - no AI generation needed.
+The user will select from the solution options presented from the CONVERGE stage.
+This stage is handled entirely by the frontend.""",
+
+        Stage.GENERATE_PRD: """Act as a senior product manager creating a Product Requirements Document (PRD) for a prototype.
+
+<task_requirements>
+Based on the selected solution option and previous analysis, you must create a comprehensive PRD that includes:
+1. Executive Summary (high-level overview)
+2. Problem Statement (from diagnosis)
+3. Solution Overview (from selected option)
+4. Prototype Scope (MVP features only - what's in and out)
+5. Success Metrics (measurable outcomes)
+6. Implementation Timeline (4-8 weeks, broken into phases)
+7. Required Resources (team, technology, budget)
+8. Risk Mitigation (key risks and strategies)
+</task_requirements>
+
+<output_formatting>
+Structure your response as a professional markdown document:
+
+# Product Requirements Document: [Solution Name]
+
+## Executive Summary
+[150-250 words: What is being built, why, and expected impact]
+
+## Problem Statement
+**Root Cause Analysis:**
+[Reference the 5-Why analysis and root cause hypotheses from DIAGNOSE stage - 100-150 words]
+
+**Business Impact:**
+[Quantify the problem's impact on the business - 50-100 words]
+
+## Solution Overview
+**Approach:**
+[Describe the selected solution approach - 150-200 words]
+
+**Key Differentiators:**
+- [Differentiator 1 - 15-30 words]
+- [Differentiator 2 - 15-30 words]
+- [Differentiator 3 - 15-30 words]
+
+## Prototype Scope
+
+### In Scope (MVP Features)
+**Core Features:**
+1. [Feature 1 - 20-40 words describing functionality and value]
+2. [Feature 2 - 20-40 words describing functionality and value]
+3. [Feature 3 - 20-40 words describing functionality and value]
+4. [Feature 4 - 20-40 words describing functionality and value]
+
+**Technical Requirements:**
+- [Requirement 1 - 15-25 words]
+- [Requirement 2 - 15-25 words]
+- [Requirement 3 - 15-25 words]
+
+### Out of Scope (Future Phases)
+- [Future feature 1 - 20-30 words explaining why it's deferred]
+- [Future feature 2 - 20-30 words explaining why it's deferred]
+- [Future feature 3 - 20-30 words explaining why it's deferred]
+
+## Success Metrics
+
+**Primary Metrics:**
+1. [Metric name]: [Baseline] → [Target] ([Timeframe])
+2. [Metric name]: [Baseline] → [Target] ([Timeframe])
+3. [Metric name]: [Baseline] → [Target] ([Timeframe])
+
+**Secondary Metrics:**
+- [Metric name]: [Target]
+- [Metric name]: [Target]
+
+**Validation Criteria:**
+- [Success criterion 1 - 20-30 words]
+- [Success criterion 2 - 20-30 words]
+
+## Implementation Timeline
+
+**Phase 1: Foundation (Weeks 1-2)**
+- [Activity 1 - 15-25 words]
+- [Activity 2 - 15-25 words]
+- [Activity 3 - 15-25 words]
+- **Deliverable:** [What will be completed]
+
+**Phase 2: Core Development (Weeks 3-5)**
+- [Activity 1 - 15-25 words]
+- [Activity 2 - 15-25 words]
+- [Activity 3 - 15-25 words]
+- **Deliverable:** [What will be completed]
+
+**Phase 3: Testing & Refinement (Weeks 6-8)**
+- [Activity 1 - 15-25 words]
+- [Activity 2 - 15-25 words]
+- [Activity 3 - 15-25 words]
+- **Deliverable:** [What will be completed]
+
+## Required Resources
+
+**Team:**
+- [Role 1]: [Responsibilities and time commitment - 20-40 words]
+- [Role 2]: [Responsibilities and time commitment - 20-40 words]
+- [Role 3]: [Responsibilities and time commitment - 20-40 words]
+
+**Technology Stack:**
+- [Category 1]: [Specific tools/platforms - 15-30 words]
+- [Category 2]: [Specific tools/platforms - 15-30 words]
+- [Category 3]: [Specific tools/platforms - 15-30 words]
+
+**Budget Estimate:**
+- Personnel: [Cost range]
+- Technology/Tools: [Cost range]
+- Infrastructure: [Cost range]
+- **Total:** [Total cost range]
+
+## Risk Mitigation
+
+**Technical Risks:**
+1. **[Risk name]**
+   - Impact: [High/Medium/Low]
+   - Probability: [High/Medium/Low]
+   - Mitigation: [Strategy - 30-50 words]
+
+2. **[Risk name]**
+   - Impact: [High/Medium/Low]
+   - Probability: [High/Medium/Low]
+   - Mitigation: [Strategy - 30-50 words]
+
+**Business Risks:**
+1. **[Risk name]**
+   - Impact: [High/Medium/Low]
+   - Probability: [High/Medium/Low]
+   - Mitigation: [Strategy - 30-50 words]
+
+2. **[Risk name]**
+   - Impact: [High/Medium/Low]
+   - Probability: [High/Medium/Low]
+   - Mitigation: [Strategy - 30-50 words]
+
+## Appendix
+
+**Assumptions:**
+- [Assumption 1]
+- [Assumption 2]
+- [Assumption 3]
+
+**Dependencies:**
+- [Dependency 1]
+- [Dependency 2]
+
+**Open Questions:**
+- [Question 1]
+- [Question 2]
+</output_formatting>
+
+<quality_standards>
+- Be specific and actionable - avoid generic statements
+- Ensure all metrics have clear baselines and targets
+- Make the timeline realistic for a prototype (4-8 weeks maximum)
+- Focus on MVP - resist feature creep
+- Provide concrete estimates, not ranges like "TBD"
+- Ensure the PRD is self-contained and comprehensive
+- Persist until all sections are complete before finishing
+- Use professional product management language
 </quality_standards>"""
     }
 
@@ -248,6 +415,22 @@ Structure your response in Markdown with the following exact format:
                 "required": False,
                 "type": "optional_notes",
                 "description": "Optional: Add any additional context before generating solutions"
+            }
+
+        if from_stage == Stage.CONVERGE.value and to_stage == Stage.SELECT_SOLUTION.value:
+            # No input required to ENTER select_solution stage
+            # The selection happens AT the select_solution stage itself
+            return {
+                "required": False,
+                "type": "none",
+                "description": "Proceeding to solution selection"
+            }
+
+        if from_stage == Stage.SELECT_SOLUTION.value and to_stage == Stage.GENERATE_PRD.value:
+            return {
+                "required": True,
+                "type": "solution_details",
+                "description": "Generate PRD for the selected solution"
             }
 
         return {"required": False}
@@ -291,6 +474,30 @@ Structure your response in Markdown with the following exact format:
 """
                 context_section += "---\n"
 
+            elif stage == Stage.GENERATE_PRD.value:
+                if "diagnose_output" in context:
+                    context_section += f"""
+## PROBLEM ANALYSIS (FROM DIAGNOSE STAGE):
+{context['diagnose_output']}
+
+"""
+                if "selected_solution" in context:
+                    solution = context['selected_solution']
+                    context_section += f"""
+## SELECTED SOLUTION:
+**Name:** {solution.get('name', 'N/A')}
+**Category:** {solution.get('category', 'N/A')}
+**Description:** {solution.get('description', 'N/A')}
+
+"""
+                if "converge_output" in context:
+                    context_section += f"""
+## ALL SOLUTION OPTIONS (FROM CONVERGE STAGE):
+{context['converge_output']}
+
+"""
+                context_section += "---\n"
+
         return context_section + base_prompt
 
     @staticmethod
@@ -316,6 +523,22 @@ Structure your response in Markdown with the following exact format:
             if user_selections and "additional_notes" in user_selections:
                 context["additional_notes"] = user_selections["additional_notes"]
 
+        elif stage == Stage.SELECT_SOLUTION.value:
+            # This stage doesn't need AI - just passing through converge output for frontend extraction
+            if Stage.CONVERGE.value in previous_stages:
+                context["converge_output"] = previous_stages[Stage.CONVERGE.value].get("output", "")
+
+        elif stage == Stage.GENERATE_PRD.value:
+            # PRD needs all previous context plus selected solution
+            if Stage.WIDEN.value in previous_stages:
+                context["widen_output"] = previous_stages[Stage.WIDEN.value].get("output", "")
+            if Stage.DIAGNOSE.value in previous_stages:
+                context["diagnose_output"] = previous_stages[Stage.DIAGNOSE.value].get("output", "")
+            if Stage.CONVERGE.value in previous_stages:
+                context["converge_output"] = previous_stages[Stage.CONVERGE.value].get("output", "")
+            if user_selections and "selected_solution" in user_selections:
+                context["selected_solution"] = user_selections["selected_solution"]
+
         return context
 
     @staticmethod
@@ -338,6 +561,14 @@ Structure your response in Markdown with the following exact format:
 
         elif stage == Stage.CONVERGE.value:
             return "Based on the problem analysis from the WIDEN and DIAGNOSE stages, generate comprehensive solution options across all three categories (Process, Analytics/ML, and Automation) with specific recommendations."
+
+        elif stage == Stage.SELECT_SOLUTION.value:
+            # This stage is purely frontend - no AI generation needed
+            return "Please select a solution option to proceed."
+
+        elif stage == Stage.GENERATE_PRD.value:
+            solution_name = context.get('selected_solution', {}).get('name', 'the selected solution')
+            return f"Generate a comprehensive Product Requirements Document (PRD) for implementing a prototype of: {solution_name}"
 
         else:
             return "Please provide your analysis for this stage."

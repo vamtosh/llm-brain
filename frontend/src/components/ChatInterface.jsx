@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import StageProgress from './StageProgress';
 import PainPointSelector from './PainPointSelector';
+import SolutionSelector from './SolutionSelector';
+import PRDViewer from './PRDViewer';
 import './ChatInterface.css';
 
 export default function ChatInterface({
@@ -11,6 +13,7 @@ export default function ChatInterface({
   onAdvanceStage,
   isLoading,
   isAdvancing,
+  advancementContext,
 }) {
   const [input, setInput] = useState('');
   const [showAdvanceUI, setShowAdvanceUI] = useState(false);
@@ -34,6 +37,11 @@ export default function ChatInterface({
   useEffect(() => {
     scrollToBottom();
   }, [conversation]);
+
+  // Reset showAdvanceUI when conversation changes
+  useEffect(() => {
+    setShowAdvanceUI(false);
+  }, [conversation?.id]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -86,6 +94,23 @@ export default function ChatInterface({
         return msg;
       }
     }
+    return null;
+  };
+
+  // Get last assistant message from a specific stage
+  const getLastAssistantMessageFromStage = (stage) => {
+    console.log(`ChatInterface: Looking for assistant message from stage '${stage}'`);
+    console.log(`ChatInterface: Total messages: ${conversation.messages.length}`);
+    
+    for (let i = conversation.messages.length - 1; i >= 0; i--) {
+      const msg = conversation.messages[i];
+      console.log(`ChatInterface: Message ${i}: role=${msg.role}, stage=${msg.stage}`);
+      if (msg.role === 'assistant' && msg.stage === stage) {
+        console.log(`ChatInterface: Found ${stage} message, content length: ${msg.content?.length}`);
+        return msg;
+      }
+    }
+    console.log(`ChatInterface: No ${stage} message found`);
     return null;
   };
 
@@ -175,11 +200,40 @@ export default function ChatInterface({
           </div>
         )}
 
+        {isAdvancing && (
+          <div className="loading-indicator">
+            <div className="spinner"></div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <span>
+                {currentStage === 'diagnose' && 'Running diagnosis for the selected pain point...'}
+                {currentStage === 'converge' && 'Generating solution ideas based on the analysis...'}
+                {currentStage === 'select_solution' && 'Preparing solution options for selection...'}
+                {currentStage === 'generate_prd' && `Generating Product Requirements Document for: ${advancementContext?.selected_solution?.name || 'selected solution'}...`}
+                {!['diagnose', 'converge', 'select_solution', 'generate_prd'].includes(currentStage) && 'Advancing to next stage...'}
+              </span>
+              {currentStage === 'diagnose' && advancementContext?.selected_pain_point && (
+                <div style={{
+                  fontSize: '0.9em',
+                  color: '#666',
+                  fontStyle: 'italic',
+                  marginTop: '4px',
+                  padding: '8px 12px',
+                  background: '#f8f9fa',
+                  borderRadius: '6px',
+                  borderLeft: '3px solid #4a90e2'
+                }}>
+                  <strong>Pain Point:</strong> {advancementContext.selected_pain_point}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
       {/* Stage Advancement UI */}
-      {!isComplete && canAdvance && !showAdvanceUI && (
+      {!isComplete && canAdvance && !showAdvanceUI && !isAdvancing && currentStage !== 'select_solution' && currentStage !== 'generate_prd' && (
         <div className="advance-prompt">
           <button
             className="show-advance-button"
@@ -191,15 +245,31 @@ export default function ChatInterface({
       )}
 
       {/* Pain Point Selector (WIDEN → DIAGNOSE) */}
-      {showAdvanceUI && requiresInput.required && requiresInput.type === 'pain_point_selection' && (
+      {showAdvanceUI && !isAdvancing && requiresInput.required && requiresInput.type === 'pain_point_selection' && (
         <PainPointSelector
           widenOutput={getLastAssistantMessage()?.content || ''}
           onAdvance={handleAdvance}
         />
       )}
 
+      {/* Solution Selector (SELECT_SOLUTION stage) */}
+      {currentStage === 'select_solution' && !isAdvancing && (
+        <SolutionSelector
+          convergeOutput={getLastAssistantMessageFromStage('converge')?.content || ''}
+          onAdvance={handleAdvance}
+        />
+      )}
+
+      {/* PRD Viewer (GENERATE_PRD stage) */}
+      {currentStage === 'generate_prd' && !isAdvancing && (
+        <PRDViewer
+          prdContent={getLastAssistantMessage()?.content || ''}
+          solutionName={advancementContext?.selected_solution?.name || 'Solution'}
+        />
+      )}
+
       {/* Simple Advance (DIAGNOSE → CONVERGE or other) */}
-      {showAdvanceUI && !requiresInput.required && (
+      {showAdvanceUI && !isAdvancing && !requiresInput.required && (
         <div className="simple-advance">
           <p>{requiresInput.description || 'Ready to advance to the next stage?'}</p>
           <div className="advance-actions">
@@ -222,7 +292,7 @@ export default function ChatInterface({
       )}
 
       {/* Message Input Form */}
-      {!isComplete && !showAdvanceUI && (
+      {!isComplete && !showAdvanceUI && !isAdvancing && (
         <form className="input-form" onSubmit={handleSubmit}>
           <textarea
             className="message-input"

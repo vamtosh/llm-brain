@@ -5,6 +5,8 @@ export default function StageProgress({ currentStage }) {
     { name: 'WIDEN', value: 'widen', icon: '🔍', description: 'Explore Problem Space' },
     { name: 'DIAGNOSE', value: 'diagnose', icon: '🔬', description: 'Analyze Root Causes' },
     { name: 'CONVERGE', value: 'converge', icon: '💡', description: 'Generate Solutions' },
+    { name: 'SELECT', value: 'select_solution', icon: '📋', description: 'Choose Solution' },
+    { name: 'PRD', value: 'generate_prd', icon: '📄', description: 'Generate PRD' },
   ];
 
   const getStageStatus = (stageValue) => {

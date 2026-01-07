@@ -113,6 +113,17 @@ class ConversationRepository:
             uuid.UUID(conversation_id)
         )
 
+    @staticmethod
+    async def delete(conversation_id: str):
+        """Delete a conversation (cascades to messages and stage_contexts)."""
+        await db.execute(
+            """
+            DELETE FROM conversations
+            WHERE id = $1
+            """,
+            uuid.UUID(conversation_id)
+        )
+
 
 class MessageRepository:
     """Repository for message operations."""

@@ -1,1 +1,1 @@
-"""LLM Council backend package."""
+"""AI ThinkCanvas backend package."""

@@ -658,9 +658,9 @@ WHERE conversation_id = 'your-conversation-id';
 - [ ] Mobile-responsive design
 - [ ] Dark mode theme
 
-## Differences from Original LLM Council
+## Differences from Original AI ThinkCanvas
 
-This codebase was transformed from the original LLM Council project:
+This codebase was transformed from the original AI ThinkCanvas project:
 
 ### What Changed
 - ✅ **Storage**: JSON files → PostgreSQL database
